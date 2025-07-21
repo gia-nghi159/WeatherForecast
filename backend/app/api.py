@@ -1,10 +1,9 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 import joblib
-import pandas as pd 
+import pandas as pd
 
 model = joblib.load('app/model/lasso_model.joblib')
-df = pd.read_csv('data/meteostat.csv')
 features = model.feature_names_in_
 
 app = FastAPI()
