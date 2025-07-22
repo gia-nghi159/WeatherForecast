@@ -5,7 +5,8 @@ def clean_and_engineer_features(df):
     df['date'] = pd.to_datetime(df['date'])
     df.set_index(df['date'], inplace=True)
     df.drop(columns=['date', 'snow', 'wdir', 'wpgt', 'tsun'], inplace=True)
-    df.dropna(subset=['tavg', 'tmin', 'tmax', 'pres', 'prcp', 'wspd'], inplace=True)
+    df['prcp'].ffill().bfill()
+    df['prcp'] = df['prcp'].fillna(0)
 
     for i in range(1, 8):
         df[f"target_{i}"] = df['tmax'].shift(-i)
@@ -20,9 +21,9 @@ def clean_and_engineer_features(df):
         df[f"{label}_pct"] = pct_diff(df[label], df[col])
         return df
 
-    rolling_horizon = [3, 14]
+    rolling_horizon = [7, 14]
     for horizon in rolling_horizon:
-        for col in ['tmax', 'tmin', 'prcp']:
+        for col in ['tavg', 'tmax', 'tmin', 'prcp']:
             df = compute_rolling(df, horizon, col)
 
     df = df.iloc[14:, :]
@@ -31,7 +32,7 @@ def clean_and_engineer_features(df):
     def expand_mean(df):
         return df.expanding().mean()
 
-    for col in ['tmax', 'tmin', 'prcp']:
+    for col in ['tavg', 'tmax', 'tmin', 'prcp']:
         df[f"month_avg_{col}"] = df[col].groupby(df.index.month, group_keys=False).transform(expand_mean)
         df[f"day_avg_{col}"] = df[col].groupby(df.index.day_of_year, group_keys=False).transform(expand_mean)
 

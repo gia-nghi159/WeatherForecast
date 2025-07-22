@@ -117,8 +117,6 @@ function App() {
     };
     
     if (dayIndex === 0) {
-      return 'Today';
-    } else if (dayIndex === 1) {
       return 'Tomorrow';
     } else {
       const dayName = targetDate.toLocaleDateString('en-US', dayOptions);
@@ -183,7 +181,7 @@ function App() {
       <header className="header">
         <div className="location">
           <span className="location-icon">📍</span>
-          <span>Carrollton, TX</span>
+          <span>Dallas, TX</span>
         </div>
         <div className="date-display">
           <span className="current-date">{getCurrentDate()}</span>
@@ -311,7 +309,7 @@ function App() {
                 <h3>Project Description:</h3>
                 <p>This web application uses a custom-trained machine learning model to forecast the maximum daily temperature for the next 7 days based on historical weather data.</p>
                 <p className="about-note"><i>
-                  <u>Note</u>: This forecast is based on historical and current weather data from Addison Airport (KADS) — the closest available weather station to Carrollton, TX.<br />
+                  <u>Note</u>: This forecast is based on historical and current weather data from Dallas Fort Worth International Airport (DFW) — the closest available weather station to Carrollton, TX.<br />
                   It reflects general regional conditions and may differ slightly from hyper-local observations (e.g., your phone’s weather app).
                 </i></p>
               </div>

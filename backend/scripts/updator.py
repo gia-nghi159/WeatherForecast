@@ -2,9 +2,9 @@ import pandas as pd
 from meteostat import Point, Daily
 from datetime import datetime, timedelta
 
-location = Point(32.9537, -96.8903) #Carrollton, TX
+location = Point(32.7831, -96.8067) # Dallas, TX
 
-csv_path = 'data/export.csv'
+csv_path = 'data/export(1).csv'
 df = pd.read_csv(csv_path)
 
 df['date'] = pd.to_datetime(df['date'])

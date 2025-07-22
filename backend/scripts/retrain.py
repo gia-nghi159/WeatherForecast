@@ -10,7 +10,7 @@ from sklearn.preprocessing import StandardScaler
 from scripts.preprocessing import clean_and_engineer_features
 import joblib
 
-df = pd.read_csv('data/export.csv')
+df = pd.read_csv('data/export(1).csv')
 df = clean_and_engineer_features(df)
 
 target_cols = [f"target_{i}" for i in range(1,8)]
@@ -24,7 +24,7 @@ model = Lasso(alpha=0.1)
 model.feature_names_in_ = X.columns
 model.fit(X_scaled, y)
 
-joblib.dump(model, 'app/model/7_days.joblib')
+joblib.dump(model, 'app/model/dallas_fw.joblib')
 joblib.dump(X.columns.tolist(), 'app/model/7_days_features.pkl')
 joblib.dump(scaler, 'app/model/7_days_scaler.pkl')
 
