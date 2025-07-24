@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 
+// const API_URL = 'http://localhost:8000'
+const API_URL = 'http://3.141.116.122:8000';
 interface TodayWeather {
   date: string;
   tavg: number;
@@ -37,8 +39,8 @@ function App() {
 
   const fetchTodayWeather = async () => {
     try {
-      console.log('Fetching today weather from:', `http://localhost:8000/today?units=${units}`);
-      const response = await fetch(`http://localhost:8000/today?units=${units}`);
+      console.log('Fetching today weather from:', `${API_URL}/today?units=${units}`);
+      const response = await fetch(`${API_URL}/today?units=${units}`);
       console.log('Response status:', response.status);
       const data = await response.json();
       console.log('Today weather data:', data);
@@ -50,8 +52,8 @@ function App() {
 
   const fetchPredictions = async () => {
     try {
-      console.log('Fetching predictions from:', `http://localhost:8000/predict?units=${units}`);
-      const response = await fetch(`http://localhost:8000/predict?units=${units}`, {
+      console.log('Fetching predictions from:', `${API_URL}/predict?units=${units}`);
+      const response = await fetch(`${API_URL}/predict?units=${units}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -21,12 +21,8 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",  # Vite dev server
-        "http://localhost:5174",  # Alternative Vite port
-        "http://localhost:3000",  # React dev server
-        "http://127.0.0.1:5173", # Alternative localhost format
-        "http://127.0.0.1:5174",
-        "http://127.0.0.1:3000"
+    "http://localhost:5173", 
+    "http://weatherforecastfrontend.s3-website.us-east-2.amazonaws.com"
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -38,9 +34,6 @@ def predict_7days_weather(units: str = Query("imperial", description="Units: 'me
     try:
         df = pd.read_csv('data/export(1).csv')
         df = clean_and_engineer_features(df)
-        
-        if len(df) < 1:
-            raise HTTPException(status_code=500, detail="Insufficient processed data")
         
         input_row = df[features].tail(1)
         
