@@ -1,0 +1,39 @@
+name: EC2 SSH Deploy
+on:
+  push:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions: { contents: read }  
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-python@v5
+      with: { python-version: "3.12" }
+
+    - run: |
+        pip install -r backend/requirements.txt
+
+    - name: Deploy to EC2
+  uses: appleboy/ssh-action@v1
+  with:
+    host:     ${{ secrets.EC2_HOST }}
+    username: ${{ secrets.EC2_USER }}
+    key:      ${{ secrets.EC2_SSH_KEY }}
+    script: |
+      set -e
+      rsync -avz --delete --exclude 'venv/' --exclude '__pycache__/' --exclude '.git/' \
+            ${{ github.workspace }}/backend/  /home/ubuntu/backend/
+      /home/ubuntu/backend/venv/bin/pip install -r /home/ubuntu/backend/requirements.txt
+      screen -S weatherapi -X quit || true
+      screen -dmS weatherapi bash -c '
+        cd /home/ubuntu/backend &&
+        source venv/bin/activate &&
+        uvicorn app.api:app --host 0.0.0.0 --port 8000
+      '
+
