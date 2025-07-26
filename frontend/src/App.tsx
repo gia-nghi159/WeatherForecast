@@ -155,6 +155,7 @@ function App() {
           precipitation: 'Precipitation',
           windSpeed: 'Wind Speed',
           pressure: 'Pressure',
+          currentTemp: 'Current Temp',
           maxTemp: 'Max Temp',
           minTemp: 'Min Temp',
           windDirection: 'Wind Direction'
@@ -249,7 +250,7 @@ function App() {
             </div>
             <div className="temperature">
               <span className="temp-main">{todayWeather?.temp || '--'}{getUnitLabels().temp}</span>
-              <span className="detail-label">{getUnitLabels().labels.maxTemp}</span>
+              <span className="detail-label">{getUnitLabels().labels.currentTemp}</span>
               <span className="condition">
                 {todayWeather ? getWeatherCondition(todayWeather.temp, todayWeather.prcp) : 'Loading...'}
               </span>
@@ -316,7 +317,7 @@ function App() {
                 <h3>Project Description:</h3>
                 <p>This web application uses a custom-trained machine learning model to forecast the maximum daily temperature for the next 7 days based on historical weather data.</p>
                 <p className="about-note"><i>
-                  <u>Note</u>: This forecast is based on historical and current weather data from Dallas Fort Worth International Airport (DFW) — the closest available weather station to Carrollton, TX.<br />
+                  <u>Note</u>: This forecast is based on historical and current weather data from Dallas Fort Worth International Airport (DFW)<br />
                   It reflects general regional conditions and may differ slightly from hyper-local observations (e.g., your phone’s weather app).
                 </i></p>
               </div>
