@@ -5,12 +5,11 @@ import './App.css'
 const API_URL = 'http://3.141.116.122:8000';
 interface TodayWeather {
   date: string;
-  tavg: number;
-  tmax: number;
-  tmin: number;
+  temp: number;
   pres: number;
   prcp: number;
   wspd: number;
+  wdir: number;
 }
 
 interface WeatherPrediction {
@@ -119,6 +118,8 @@ function App() {
     };
     
     if (dayIndex === 0) {
+      return 'Today';
+    } else if (dayIndex === 1) {
       return 'Tomorrow';
     } else {
       const dayName = targetDate.toLocaleDateString('en-US', dayOptions);
@@ -149,12 +150,14 @@ function App() {
         pressure: 'inHg',
         precipitation: 'in',
         windSpeed: 'mph',
+        windDirection: '°',
         labels: {
           precipitation: 'Precipitation',
           windSpeed: 'Wind Speed',
           pressure: 'Pressure',
           maxTemp: 'Max Temp',
-          minTemp: 'Min Temp'
+          minTemp: 'Min Temp',
+          windDirection: 'Wind Direction'
         }
       };
     } else {
@@ -163,12 +166,14 @@ function App() {
         pressure: 'kPa',
         precipitation: 'mm',
         windSpeed: 'km/h',
+        windDirection: '°',
         labels: {
           precipitation: 'Precipitation',
           windSpeed: 'Wind Speed',
           pressure: 'Pressure',
           maxTemp: 'Max Temp',
-          minTemp: 'Min Temp'
+          minTemp: 'Min Temp',
+          windDirection: 'Wind Direction'
         }
       };
     }
@@ -240,38 +245,38 @@ function App() {
         <div className="weather-overview">
           <div className="current-weather">
             <div className="weather-icon">
-              {getWeatherIcon(todayWeather?.tmax || 70, todayWeather?.prcp || 0)}
+              {getWeatherIcon(todayWeather?.temp || 70, todayWeather?.prcp || 0)}
             </div>
             <div className="temperature">
-              <span className="temp-main">{todayWeather?.tmax || '--'}{getUnitLabels().temp}</span>
+              <span className="temp-main">{todayWeather?.temp || '--'}{getUnitLabels().temp}</span>
               <span className="detail-label">{getUnitLabels().labels.maxTemp}</span>
               <span className="condition">
-                {todayWeather ? getWeatherCondition(todayWeather.tmax, todayWeather.prcp) : 'Loading...'}
+                {todayWeather ? getWeatherCondition(todayWeather.temp, todayWeather.prcp) : 'Loading...'}
               </span>
             </div>
           </div>
 
           <div className="weather-details">                        
             <div className="detail-item">
-              <span className="detail-icon">🌡️</span>
-              <span className="detail-value">{todayWeather?.tmin || '--'}{getUnitLabels().temp}</span>
-              <span className="detail-label">{getUnitLabels().labels.minTemp}</span>
-            </div>
-            <div className="detail-item">
               <span className="detail-icon">💧</span>
               <span className="detail-value">{todayWeather?.prcp || 0} {getUnitLabels().precipitation}</span>
               <span className="detail-label">{getUnitLabels().labels.precipitation}</span>
             </div>
+            <div className="detail-item">
+              <span className="detail-icon">🏔️</span>
+              <span className="detail-value">{todayWeather?.pres || '--'} {getUnitLabels().pressure}</span>
+              <span className="detail-label">{getUnitLabels().labels.pressure}</span>
+            </div> 
             <div className="detail-item">
               <span className="detail-icon">💨</span>
               <span className="detail-value">{todayWeather?.wspd || '--'} {getUnitLabels().windSpeed}</span>
               <span className="detail-label">{getUnitLabels().labels.windSpeed}</span>
             </div>
             <div className="detail-item">
-              <span className="detail-icon">🏔️</span>
-              <span className="detail-value">{todayWeather?.pres || '--'} {getUnitLabels().pressure}</span>
-              <span className="detail-label">{getUnitLabels().labels.pressure}</span>
-            </div>            
+              <span className="detail-icon">🌀</span>
+              <span className="detail-value">{todayWeather?.wdir || '--'} {getUnitLabels().windDirection}</span>
+              <span className="detail-label">{getUnitLabels().labels.windDirection}</span>
+            </div>
           </div>
         </div>
 

@@ -5,15 +5,12 @@ import joblib
 import os
 from scripts.preprocessing import clean_and_engineer_features
 
-# Load model, features, scaler with error handling
-try:
-    model = joblib.load('app/model/dallas_fw.joblib')
-    features = joblib.load('app/model/7_days_features.pkl')
-    scaler = joblib.load('app/model/7_days_scaler.pkl')
-    print("Models loaded successfully")
-except Exception as e:
-    print(f"Error loading models: {e}")
-    raise
+ROOT = os.path.dirname(os.path.dirname(__file__))
+DAILY_CSV  = os.path.join(ROOT, "data/export(1).csv")
+HOURLY_CSV = os.path.join(ROOT, "data/hourly_data.csv")
+MODEL_PATH = os.path.join(ROOT, "app/model/dallas_fw.joblib")
+
+pipe = joblib.load(MODEL_PATH)
 
 app = FastAPI()
 
@@ -22,6 +19,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
     "http://localhost:5173", 
+    "http://127.0.0.1:5173",
     "http://weatherforecastfrontend.s3-website.us-east-2.amazonaws.com"
     ],
     allow_credentials=True,
@@ -32,30 +30,25 @@ app.add_middleware(
 @app.post("/predict")
 def predict_7days_weather(units: str = Query("imperial", description="Units: 'metric' or 'imperial'")):
     try:
-        df = pd.read_csv('data/export(1).csv')
-        df = clean_and_engineer_features(df)
-        
-        input_row = df[features].tail(1)
-        
-        # Handle missing values
-        if input_row.isnull().any().any():
-            print("Filling missing values")
-            input_row = input_row.fillna(method='ffill').fillna(0)
-        
-        input_scaled = scaler.transform(input_row)
-        predictions = model.predict(input_scaled)[0]
+        df = pd.read_csv(DAILY_CSV)
+        df_60 = df.tail(60).copy()
+        df_60 = clean_and_engineer_features(df_60)
 
-        print(f"Raw predictions: {predictions}")
+        X = df_60[pipe.feature_names_in_].tail(1)
+
+        # Handle missing values
+        if X.isnull().any().any():
+            print("Filling missing values")
+            X = X.fillna(method='ffill').fillna(0)
+
+        predictions = pipe.predict(X)[0]
 
         if units == "imperial":
-            pred_converted = predictions * 9 / 5 + 32
+            predictions = predictions * 9 / 5 + 32
             print("Converted to Fahrenheit")
-        else:
-            pred_converted = predictions
-            print("Keeping Celsius")
 
-        results = {f"day_{i+1}": round(pred, 1) for i, pred in enumerate(pred_converted)}
-        
+        results = {f"day_{i+1}": float(round(pred, 1)) for i, pred in enumerate(predictions)}
+
         response = {
             "7_day_tmax_prediction": results,
             "units": "°F" if units == "imperial" else "°C",
@@ -74,59 +67,33 @@ def predict_7days_weather(units: str = Query("imperial", description="Units: 'me
     
 @app.get("/today")
 def get_today_weather(units: str = Query("imperial", description="Units: 'metric' or 'imperial'")):
-    try:
-        print(f"Today's weather request with units: {units}")
-        
-        csv_path = 'data/export(1).csv'
-        if not os.path.exists(csv_path):
-            print(f"CSV file not found at: {csv_path}")
-            raise HTTPException(status_code=500, detail=f"Data file not found: {csv_path}")
-        
-        df = pd.read_csv(csv_path)
-        
-        if df.empty:
-            raise HTTPException(status_code=500, detail="Weather data is empty")
-        
-        today_row = df.tail(1).copy()
-        print(f"Latest date: {today_row['date'].values[0]}")
+    df = pd.read_csv(HOURLY_CSV)
+    if df.empty:
+        return {"message": "No hourly data available"}
+    row = df.tail(1).squeeze()        
 
-        if units == "imperial":
-            # Convert to Imperial units
-            today_row['tavg'] = today_row['tavg'] * 9/5 + 32
-            today_row['tmax'] = today_row['tmax'] * 9/5 + 32
-            today_row['tmin'] = today_row['tmin'] * 9/5 + 32
-            today_row['pres'] = today_row['pres'] * 0.02953  # kPa to inHg
-            today_row['prcp'] = today_row['prcp'] * 0.0393701  # mm to inches
-            today_row['wspd'] = today_row['wspd'] * 0.621371  # km/h to mph
-            print("Converted to Imperial units")
+    temp = row["temp"]
+    prcp = row.get("prcp", 0)
+    wspd = row.get("wspd", 0)
+    wdir = row.get("wdir", 0)
+    pres = row.get("pres", 0)
 
-        # Safe value extraction with NaN handling
-        def safe_value(series, decimals=1):
-            val = series.values[0]
-            if pd.isna(val):
-                return 0.0
-            return round(float(val), decimals)
+    if units == "imperial":
+        temp = temp * 9/5 + 32
+        prcp = prcp * 0.0393701 if pd.notna(prcp) else 0
+        wspd = wspd * 0.621371  if pd.notna(wspd) else 0
+        pres = pres * 0.02953   if pd.notna(pres) else 0
 
-        response = {
-            "date": today_row['date'].values[0],
-            "tavg": safe_value(today_row['tavg'], 1),
-            "tmax": safe_value(today_row['tmax'], 1),
-            "tmin": safe_value(today_row['tmin'], 1),
-            "pres": safe_value(today_row['pres'], 2),
-            "prcp": safe_value(today_row['prcp'], 2),
-            "wspd": safe_value(today_row['wspd'], 2),
-            "units": units,
-            "status": "success"
-        }
-        return response
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        error_msg = f"Today's weather error: {str(e)}"
-        print(f"{error_msg}")
-        raise HTTPException(status_code=500, detail=error_msg)
-
+    return {
+        "datetime": row["time"],
+        "temp": round(float(temp), 1),
+        "prcp": round(float(prcp), 2),
+        "wspd": round(float(wspd), 2),
+        "wdir": round(float(wdir), 0),
+        "pres": round(float(pres), 2),
+        "units": "°F" if units == "imperial" else "°C",
+        "status": "success"
+    }
 
 @app.get("/")
 def root():

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import pandas as pd
 from meteostat import Point, Daily
 from datetime import datetime, timedelta
@@ -11,7 +13,7 @@ df['date'] = pd.to_datetime(df['date'])
 last_date = df['date'].max()
 
 start = last_date + timedelta(days=1)
-end = datetime.now()
+end = pd.Timestamp(datetime.today().date() - timedelta(days=1))
 
 if start >= end:
     print("Already up to date")
@@ -35,6 +37,5 @@ else:
         else:
             print("No new data to append")
     except Exception as e:
-        print("❌ Error fetching data:", e)
+        print("Error fetching data:", e)
         exit()
-

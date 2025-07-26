@@ -3,10 +3,9 @@ import numpy as np
 
 def clean_and_engineer_features(df):
     df['date'] = pd.to_datetime(df['date'])
-    df.set_index(df['date'], inplace=True)
-    df.drop(columns=['date', 'snow', 'wdir', 'wpgt', 'tsun'], inplace=True)
-    df['prcp'].ffill().bfill()
-    df['prcp'] = df['prcp'].fillna(0)
+    df = df.set_index(df['date']).copy()
+    df.drop(columns=['date', 'snow', 'wdir', 'wpgt', 'tsun'], inplace=True, errors='ignore')
+    df['prcp'] = df['prcp'].ffill().bfill().fillna(0)
 
     for i in range(1, 8):
         df[f"target_{i}"] = df['tmax'].shift(-i)
