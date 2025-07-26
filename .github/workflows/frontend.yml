@@ -1,28 +1,33 @@
 name: S3 Deploy
 on:
   push:
-    path:
+    paths:
       - "frontend/**"
       - ".github/workflows/frontend.yml"
 
-job:
+jobs:
   deploy:
     runs-on: ubuntu-latest
-    permissions: { id-tokem: write, contents: read }
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
-      - uses: actions/checkout@v2
-    
-      - uses: actions/setup-node@v4
-        with: { node-version: "20" }
-      
-      - run: npm ci --prefix frontend
-      - run: npm run --prefix frontend build
+    - uses: actions/checkout@v4       
 
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.GH_AWS_ROLE_ARN }}
-          aws-region: us-east-1
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "20"
 
-      - run: aws s3 sync frontend/build s3://$S3_BUCKET --delete
-        env: { S3_BUCKET: ${{ secrets.S3_BUCKET }} }
+    - run: npm ci --prefix frontend
+    - run: npm run --prefix frontend build
+
+    - uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.GH_AWS_ROLE_ARN }}
+        aws-region: us-east-1
+
+    - name: Sync build to S3
+      run: aws s3 sync frontend/build/ s3://$S3_BUCKET/ --delete
+      env:
+        S3_BUCKET: ${{ secrets.S3_BUCKET }}
