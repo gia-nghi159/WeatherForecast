@@ -11,15 +11,8 @@ __pycache__/
 # Virtual environments
 venv/
 
-# SSH key
-backend/*.pem
 
-# Build artifacts and compressed files
-*.zip
-frontend/dist/
-frontend/node_modules/
 
-# Lock file
-package-lock.json
+
 
 

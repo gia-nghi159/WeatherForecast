@@ -1,0 +1,41 @@
+name: Weekly Model Retraining Pipeline
+
+on:
+  schedule:
+    # Runs automatically every day at 00:30 UTC
+    - cron: '30 0 * * 0'
+  # Allows manual trigger in GitHub Actions UI
+  workflow_dispatch:
+
+jobs:
+  retrain-job:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Grants GitHub Actions write access to commit back
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v2
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Execute retraining script
+        env:
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+        run: |
+          uv run python backend/src/retrain.py
+
+      - name: Commit and push updated files
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add backend/
+          git diff --quiet && git diff --staged --quiet || (
+            git commit -m "chore(mlops): automated update [skip ci]" && \
+            git pull --rebase origin main && \
+            git push
+          )
