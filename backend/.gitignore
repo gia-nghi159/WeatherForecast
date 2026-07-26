@@ -11,7 +11,10 @@ __pycache__/
 # Virtual environments
 venv/
 
-
+# Terraform (relative path)
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
 
 
 
