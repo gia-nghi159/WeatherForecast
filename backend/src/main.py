@@ -73,27 +73,44 @@ except Exception as e:
 
 
 def log_predictions_to_file(predictions_c: list):
-    """Logs raw prediction output with target dates for ground truth matching."""
+    """
+    Updates the log file by keeping the most recent prediction for each 
+    (target_date, horizon_days) combination.
+    """
     today = datetime.now().date()
-    log_entries = []
+    
+    # 1. Load existing logs into a map (dictionary)
+    logs_map = {}
+    if PREDICTIONS_LOG.exists():
+        with open(PREDICTIONS_LOG, "r") as f:
+            for line in f:
+                if line.strip():
+                    entry = json.loads(line)
+                    # Use a composite key to ensure we track the horizon separately
+                    key = (entry["target_date"], entry["horizon_days"])
+                    logs_map[key] = entry
 
+    # 2. Add or Overwrite with today's new predictions
     for i, pred_temp in enumerate(predictions_c):
-        target_date = today + timedelta(days=i + 1)
-        log_entries.append(
-            {
-                "predicted_at": str(today),
-                "target_date": str(target_date),
-                "horizon_days": i + 1,
-                "predicted_tmax_c": round(float(pred_temp), 2),
-                "model_version": MODEL_VERSION,
-            }
-        )
+        target_date = str(today + timedelta(days=i + 1))
+        horizon = i + 1
+        key = (target_date, horizon)
+        
+        logs_map[key] = {
+            "predicted_at": str(today),
+            "target_date": target_date,
+            "horizon_days": horizon,
+            "predicted_tmax_c": round(float(pred_temp), 2),
+            "model_version": MODEL_VERSION,
+        }
 
+    # 3. Write the cleaned map back to the file
     PREDICTIONS_LOG.parent.mkdir(parents=True, exist_ok=True)
-    with open(PREDICTIONS_LOG, "a") as f:
-        for entry in log_entries:
+    with open(PREDICTIONS_LOG, "w") as f:
+        for entry in logs_map.values():
             f.write(json.dumps(entry) + "\n")
-    logger.info(f"Logged {len(log_entries)} predictions for ground-truth evaluation.")
+            
+    logger.info(f"Successfully synchronized {len(predictions_c)} predictions to log.")
 
 
 @app.post("/predict", response_model=PredictionResponse)
