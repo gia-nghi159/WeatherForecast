@@ -2,16 +2,14 @@ name: Weekly Model Retraining Pipeline
 
 on:
   schedule:
-    # Runs automatically every day at 00:30 UTC
-    - cron: '30 0 * * 0'
-  # Allows manual trigger in GitHub Actions UI
+    - cron: '30 0 * * 0' # Runs automatically every Sunday at 00:30 UTC
   workflow_dispatch:
 
 jobs:
   retrain-job:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Grants GitHub Actions write access to commit back
+      contents: write 
 
     steps:
       - name: Check out repository
@@ -21,13 +19,14 @@ jobs:
         uses: astral-sh/setup-uv@v2
 
       - name: Set up Python
+        working-directory: ./backend
         run: uv python install
 
       - name: Execute retraining script
+        working-directory: ./backend
         env:
           REDIS_URL: ${{ secrets.REDIS_URL }}
-        run: |
-          uv run python backend/src/retrain.py
+        run: uv run python src/train.py
 
       - name: Commit and push updated files
         run: |

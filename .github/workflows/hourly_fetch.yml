@@ -19,13 +19,14 @@ jobs:
         uses: astral-sh/setup-uv@v2
 
       - name: Set up Python
+        working-directory: ./backend
         run: uv python install
 
       - name: Fetch Hourly Telemetry
+        working-directory: ./backend
         env:
           REDIS_URL: ${{ secrets.REDIS_URL }}
-        run: |
-          uv run python backend/src/pipeline.py hourly
+        run: uv run python src/pipeline.py hourly
 
       - name: Commit and push updated files
         run: |

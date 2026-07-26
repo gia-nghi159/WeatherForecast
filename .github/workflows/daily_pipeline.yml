@@ -2,11 +2,11 @@ name: Daily Pipeline & Ground Truth Evaluation
 
 on:
   schedule:
-    - cron: '0 0 * * 0'  # Runs every Sunday at 00:00 UTC
+    - cron: '0 0 * * *'  # Runs every day at 00:00 UTC
   workflow_dispatch:
 
 jobs:
-  retrain-job:
+  daily-job:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -19,11 +19,12 @@ jobs:
         uses: astral-sh/setup-uv@v2
 
       - name: Set up Python
+        working-directory: ./backend
         run: uv python install
 
-      - name: Execute Model Retraining
-        run: |
-          uv run python backend/src/train.py
+      - name: Execute Daily Telemetry & Evaluation
+        working-directory: ./backend
+        run: uv run python src/pipeline.py daily
 
       - name: Commit and push updated files
         run: |
