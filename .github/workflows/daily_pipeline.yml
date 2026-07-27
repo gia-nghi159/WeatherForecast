@@ -26,8 +26,14 @@ jobs:
         working-directory: ./backend
         run: uv sync
 
+      - name: Run unit tests
+        working-directory: ./backend
+        run: uv run pytest
+
       - name: Execute Daily Telemetry & Evaluation
         working-directory: ./backend
+        env:
+          REDIS_URL: ${{ secrets.REDIS_URL }}
         run: uv run python src/pipeline.py daily
 
       - name: Commit and push updated files

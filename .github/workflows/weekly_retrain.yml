@@ -26,6 +26,10 @@ jobs:
         working-directory: ./backend
         run: uv sync
 
+      - name: Run unit tests
+        working-directory: ./backend
+        run: uv run pytest
+
       - name: Execute retraining script
         working-directory: ./backend
         run: uv run python src/train.py

@@ -8,7 +8,7 @@ import { WeatherDetails } from './components/WeatherDetails';
 import { ForecastGrid } from './components/ForecastGrid';
 import { Footer } from './components/Footer';
 
-const API_URL = 'http://localhost:8000'; // or EC2 URL
+const API_URL = ''; // or EC2 URL
 
 function App() {
   const [todayWeather, setTodayWeather] = useState<TodayWeather | null>(null);

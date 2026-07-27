@@ -1,17 +1,28 @@
 # 🌤️ WeatherForecast: Automated MLOps & K8s Architecture
-A full-stack, real-time weather dashboard and 7-day Machine Learning temperature forecast for Dallas, TX. This project showcases a complete end-to-end local microservices architecture, featuring Kubernetes orchestration, Infrastructure as Code (IaC), and automated MLOps pipelines.
+
+![Weather UI Dashboard](./assets/UI.png)
+
+A full-stack, real-time weather dashboard and 7-day Machine Learning temperature forecast for Dallas, TX. This project showcases a complete end-to-end local microservices architecture, featuring Kubernetes orchestration, Infrastructure as Code (IaC), and automated continuous training (CT) pipelines.
 
 ---
 
-## ✨ Features
+## ✨ System Architecture & Key Features
 
-* **Real-Time Telemetry:** Live current conditions (temperature, wind, pressure, precipitation) fetched and cached for performance.
-* **ML-Powered 7-Day Forecast:** Daily maximum temperature predictions powered by a custom-trained Lasso Regression model.
-* **Responsive UI:** Built with React & TypeScript, featuring dynamic weather icons and instant unit conversions (°C ⇄ °F, km/h ⇄ mph).
-* **High-Performance Caching:** Redis integration to cache API responses, reducing ML inference overhead and external API calls.
-* **Kubernetes Orchestration:** Backend containerized and deployed on a local Minikube cluster using Helm and Terraform.
-* **Automated CI/CD MLOps:** GitHub Actions configured to fetch hourly telemetry, perform daily ground-truth evaluations, and execute weekly model retraining.
-* **Load Tested & Autoscaled:** Configured Horizontal Pod Autoscaling (HPA) tested via Locust to handle simulated traffic spikes dynamically.
+* **MLOps & Continuous Training (CT):** Fully automated GitHub Actions pipelines that fetch ground-truth telemetry daily, evaluate live model drift (Mean Absolute Error), and retrain the Scikit-Learn Lasso Regression model weekly with zero-downtime `.joblib` deployment.
+* **Dual-Layer Caching Strategy:** Redis integration minimizes costly external API calls and ML inference overhead. Current telemetry is cached for 1 hour, while heavy 7-day ML predictions are cached for 24 hours. CI/CD cron jobs act as system heartbeats to ensure caches are always warm for real users.
+* **High-Performance Networking:** Custom Vite Proxy configuration bypasses macOS IPv6 DNS resolution and eliminates CORS bottlenecks, bridging the React frontend directly to the Kubernetes Ingress Controller.
+* **Resilient Infrastructure:** Backend containerized and deployed on a local Minikube cluster using Helm and Terraform. Configured with Horizontal Pod Autoscaling (HPA) to handle simulated traffic spikes dynamically.
+* **Responsive UI:** Built with React & TypeScript, featuring dynamic glassmorphism styling, weather icons, and instant client-side unit conversions (°C ⇄ °F, km/h ⇄ mph).
+
+---
+
+## 🤖 CI/CD & MLOps Pipelines (GitHub Actions)
+
+This project implements a fully automated Continuous Training (CT) and data ingestion architecture. To ensure system stability, every pipeline includes an automated **`pytest` safety gate** that prevents code execution or commits if the unit tests fail.
+
+* **Hourly Telemetry Fetch (`hourly_fetch.yml`):** Runs every hour to fetch the latest weather observations, updates the local CSV dataset, and strategically evicts the 1-hour Redis telemetry cache.
+* **Daily Ground Truth Evaluation (`daily_pipeline.yml`):** Runs every night at midnight UTC. It fetches the daily maximum temperature, compares it against the model's prediction from the previous day, logs the Mean Absolute Error (MAE) for drift monitoring, and evicts the 24-hour prediction cache.
+* **Weekly Model Retraining (`weekly_retrain.yml`):** Runs every Sunday. It automatically re-runs the feature engineering pipeline on the newly expanded dataset, retrains the Scikit-Learn Lasso model, and commits the updated `.joblib` model back to the repository with zero downtime.
 
 ---
 
@@ -31,9 +42,9 @@ A full-stack, real-time weather dashboard and 7-day Machine Learning temperature
 
 ### DevOps & Infrastructure
 * **Containerization:** Docker
-* **Orchestration:** Kubernetes (Minikube), Helm Charts
+* **Orchestration:** Kubernetes (Minikube), Helm Charts, Ingress-Nginx
 * **Infrastructure as Code (IaC):** Terraform
-* **CI/CD:** GitHub Actions
+* **CI/CD:** GitHub Actions (Cron triggers, automated commits)
 * **Testing & Monitoring:** Locust, Pytest, Prometheus, Grafana
 
 ---
@@ -42,40 +53,29 @@ A full-stack, real-time weather dashboard and 7-day Machine Learning temperature
 
 ```bash
 WeatherForecast/
-├── .github/workflows/          # GitHub Actions for automated MLOps cron jobs
-│   ├── daily_pipeline.yml
-│   ├── hourly_fetch.yml
-│   └── weekly_retrain.yml
+├── .github/workflows/          # Automated MLOps cron jobs (Hourly, Daily, Weekly)
 ├── backend/                    # Python FastAPI & ML Pipeline
-│   ├── data/                   # Raw CSVs, logs, and Grafana dashboard JSONs
+│   ├── data/                   # Raw CSVs, JSONL logs, and Grafana dashboards
 │   ├── models/                 # Serialized ML models (.joblib)
-│   ├── notebooks/              # Jupyter notebooks for model exploration
 │   ├── src/                    # FastAPI application and ML source code
-│   │   ├── config.py           # Environment variables & constants
-│   │   ├── main.py             # FastAPI routing and endpoints
-│   │   ├── pipeline.py         # Telemetry fetching logic
+│   │   ├── main.py             # FastAPI routing and middleware
+│   │   ├── pipeline.py         # Telemetry fetching and ground-truth evaluation
 │   │   ├── preprocessing.py    # Feature engineering for ML
 │   │   ├── schemas.py          # Pydantic response models
-│   │   └── train.py            # Model training script
+│   │   └── train.py            # Model retraining script
 │   ├── terraform/              # IaC to provision Kubernetes resources
-│   │   └── main.tf
-│   ├── tests/                  # Pytest unit tests
 │   ├── weather-chart/          # Helm chart for Kubernetes deployment
 │   ├── Dockerfile              # Backend container build instructions
 │   ├── locustfile.py           # Load testing configuration
 │   ├── Makefile                # Automation commands for local setup
-│   ├── pyproject.toml          # Python project metadata
 │   └── uv.lock                 # Strict dependency locking via uv
 └── frontend/                   # React + TypeScript Web App
     ├── public/                 # Static assets
     ├── src/
-    │   ├── components/         # Modular React components (Header, ForecastGrid, etc.)
-    │   ├── types/              # TypeScript interfaces
-    │   ├── utils/              # Helper functions
-    │   ├── App.tsx             # Root application component
-    │   └── main.tsx            # React DOM entry point
+    │   ├── components/         # Modular React components
+    │   └── App.tsx             # Root application component
     ├── package.json            # Node dependencies
-    └── vite.config.ts          # Vite bundler configuration
+    └── vite.config.ts          # Vite proxy and bundler configuration
 ```
 
 ---
@@ -85,7 +85,6 @@ WeatherForecast/
 This project is designed to be run entirely locally. The backend utilizes a `Makefile` to automate the complex orchestration of Docker, Minikube, and Terraform.
 
 ### Prerequisites
-Make sure you have the following installed on your local machine:
 * [Docker Desktop](https://www.docker.com/products/docker-desktop/) or OrbStack
 * [Minikube](https://minikube.sigs.k8s.io/docs/start/) & `kubectl`
 * [Terraform](https://developer.hashicorp.com/terraform/downloads)
@@ -104,14 +103,13 @@ make setup
 # Provision the Kubernetes resources (Helm & Prometheus) via Terraform
 make deploy
 
-# Open the network tunnel to expose the local LoadBalancer (requires sudo/admin password)
+# Open the network tunnel to expose the local Ingress (requires sudo password)
 # NOTE: Leave this terminal window running!
 make tunnel
 ```
-*The API is now running locally at: `http://localhost:8000`*
 
 ### 2. Start the Frontend (React UI)
-Open a **new** terminal window, navigate to the frontend directory, and start the Vite development server.
+Open a **new** terminal window, navigate to the frontend directory, and start the Vite development server. The `vite.config.ts` is configured to proxy API requests to the Kubernetes Ingress automatically.
 
 ```bash
 cd frontend
@@ -122,7 +120,7 @@ npm install
 # Start the frontend dev server
 npm run dev
 ```
-*The Web UI is now accessible at: `http://localhost:5173` (or the port Vite provides).*
+*The Web UI is now accessible at `http://localhost:5173` (or the port Vite provides).*
 
 ### 3. Optional: Run Load Tests
 To verify Horizontal Pod Autoscaling (HPA) and test the backend's resilience, you can trigger a local swarm test using Locust.
