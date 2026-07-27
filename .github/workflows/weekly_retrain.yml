@@ -22,10 +22,12 @@ jobs:
         working-directory: ./backend
         run: uv python install
 
+      - name: Install dependencies
+        working-directory: ./backend
+        run: uv sync
+
       - name: Execute retraining script
         working-directory: ./backend
-        env:
-          REDIS_URL: ${{ secrets.REDIS_URL }}
         run: uv run python src/train.py
 
       - name: Commit and push updated files

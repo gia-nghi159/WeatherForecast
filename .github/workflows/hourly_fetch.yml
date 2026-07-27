@@ -22,6 +22,10 @@ jobs:
         working-directory: ./backend
         run: uv python install
 
+      - name: Install dependencies
+        working-directory: ./backend
+        run: uv sync
+
       - name: Fetch Hourly Telemetry
         working-directory: ./backend
         env:
