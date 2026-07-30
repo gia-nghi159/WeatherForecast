@@ -9,9 +9,9 @@ A full-stack, real-time weather dashboard and 7-day Machine Learning temperature
 ## ✨ System Architecture & Key Features
 
 * **MLOps & Continuous Training (CT):** Fully automated GitHub Actions pipelines that fetch ground-truth telemetry daily, evaluate live model drift (Mean Absolute Error), and retrain the Scikit-Learn Lasso Regression model weekly with zero-downtime `.joblib` deployment.
-* **Dual-Layer Caching Strategy:** Redis integration minimizes costly external API calls and ML inference overhead. Current telemetry is cached for 1 hour, while heavy 7-day ML predictions are cached for 24 hours. CI/CD cron jobs act as system heartbeats to ensure caches are always warm for real users.
+* **Dual-Layer Caching Strategy:** Redis integration minimizes costly external API calls and ML inference overhead. Current telemetry is cached for 1 hour, while heavy 7-day ML predictions are cached for 24 hours. Provisioned via the official Bitnami Redis Helm chart.
 * **High-Performance Networking:** Custom Vite Proxy configuration bypasses macOS IPv6 DNS resolution and eliminates CORS bottlenecks, bridging the React frontend directly to the Kubernetes Ingress Controller.
-* **Resilient Infrastructure:** Backend containerized and deployed on a local Minikube cluster using Helm and Terraform. Configured with Horizontal Pod Autoscaling (HPA) to handle simulated traffic spikes dynamically.
+* **Resilient Infrastructure:** Backend containerized and deployed on a local Minikube cluster using Helm and Terraform. Uvicorn worker counts and Redis CPU/Memory limits are precisely tuned to prevent OOM Kills and Liveness Probe timeouts during load tests. Configured with Horizontal Pod Autoscaling (HPA) to handle simulated traffic spikes dynamically.
 * **Responsive UI:** Built with React & TypeScript, featuring dynamic glassmorphism styling, weather icons, and instant client-side unit conversions (°C ⇄ °F, km/h ⇄ mph).
 
 ---

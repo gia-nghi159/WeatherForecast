@@ -21,14 +21,14 @@ spec:
         - containerPort: 8000
         env:
         - name: REDIS_URL
-          value: "redis://weather-redis:6379"
+          value: "redis://my-redis-master:6379"
         resources:
           requests:
             cpu: "100m"
-            memory: "128Mi"
+            memory: "256Mi"
           limits:
             cpu: "1000m"
-            memory: "512Mi"
+            memory: "1024Mi"
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler

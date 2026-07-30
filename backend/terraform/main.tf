@@ -38,6 +38,14 @@ resource "helm_release" "weather_app" {
     value = "1000m"
   }
   set {
+    name  = "resources.limits.memory"
+    value = "1024Mi"
+  }
+  set {
+    name  = "resources.requests.memory"
+    value = "256Mi"
+  }
+  set {
     name  = "autoscaling.targetCPUUtilizationPercentage"
     value = "50"
   }
@@ -58,11 +66,11 @@ resource "helm_release" "prometheus" {
   }
   set {
     name  = "kubeStateMetrics.enabled"
-    value = "false"
+    value = "true"
   }
   set {
     name  = "nodeExporter.enabled"
-    value = "false"
+    value = "true"
   }
   set {
     name  = "prometheus.prometheusSpec.resources.requests.memory"
@@ -75,5 +83,32 @@ resource "helm_release" "prometheus" {
   set {
     name  = "grafana.ingress.hosts[0]"
     value = "grafana.local"
+  }
+}
+resource "helm_release" "redis" {
+  name       = "my-redis"
+  repository = "oci://registry-1.docker.io/bitnamicharts"
+  chart      = "redis"
+  version    = "19.6.1"
+  
+  set {
+    name  = "architecture"
+    value = "standalone"
+  }
+  set {
+    name  = "auth.enabled"
+    value = "false"
+  }
+  set {
+    name  = "image.tag"
+    value = "latest"
+  }
+  set {
+    name  = "master.resources.limits.cpu"
+    value = "500m"
+  }
+  set {
+    name  = "master.resources.limits.memory"
+    value = "512Mi"
   }
 }

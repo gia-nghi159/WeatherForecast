@@ -14,8 +14,8 @@ setup:
 # 2. Applies the Terraform infrastructure
 deploy:
 	@echo "Provisioning infrastructure with Terraform..."
-	terraform init
-	terraform apply -auto-approve
+	terraform -chdir=terraform init
+	terraform -chdir=terraform apply -auto-approve
 	@echo "Deployment complete! Run 'make tunnel' in a new window."
 
 # 3. Opens the tunnel (Needs its own terminal window)
@@ -36,5 +36,5 @@ logs:
 # 6. Tears everything down to free up RAM
 clean:
 	@echo "Destroying infrastructure and stopping Minikube..."
-	terraform destroy -auto-approve
+	terraform -chdir=terraform destroy -auto-approve
 	minikube stop
