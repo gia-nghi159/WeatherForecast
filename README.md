@@ -108,6 +108,16 @@ make deploy
 make tunnel
 ```
 
+### 1.5. Configure Local DNS
+To access the services through their Ingress hostnames locally, you must map them to localhost in your machine's hosts file.
+
+```bash
+sudo sh -c 'echo "127.0.0.1 weather.local grafana.local" >> /etc/hosts'
+```
+
+* **Grafana Dashboard:** Navigate to `http://grafana.local` (Default Login - Username: `admin`, Password: `prom-operator`)
+* **Weather API:** Navigate to `http://weather.local/health`
+
 ### 2. Start the Frontend (React UI)
 Open a **new** terminal window, navigate to the frontend directory, and start the Vite development server. The `vite.config.ts` is configured to proxy API requests to the Kubernetes Ingress automatically.
 
