@@ -27,11 +27,15 @@ provider "helm" {
 # 2. Deploy Weather App using local Helm Chart
 resource "helm_release" "weather_app" {
   name      = "my-weather-app"
-  chart     = "../weather-chart" # Path to your chart relative to the terraform folder
+  chart     = "../weather-chart"
   namespace = "default"
+  
+  # Ensure Redis is fully deployed before booting the API so the API can connect to it!
+  depends_on = [helm_release.redis]
+  
   set {
     name  = "resources.requests.cpu"
-    value = "100m"
+    value = "500m"
   }
   set {
     name  = "resources.limits.cpu"
@@ -47,7 +51,7 @@ resource "helm_release" "weather_app" {
   }
   set {
     name  = "autoscaling.targetCPUUtilizationPercentage"
-    value = "50"
+    value = "70"
   }
 }
 

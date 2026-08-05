@@ -6,6 +6,9 @@
 setup:
 	@echo "Starting Minikube..."
 	minikube start --memory=6144 --cpus=4
+	@echo "Enabling Minikube addons..."
+	minikube addons enable ingress
+	minikube addons enable metrics-server
 	@echo "Building Docker image inside Minikube..."
 	minikube image build -t weather-backend:latest .
 	@echo "Installing local Python dependencies for testing..."
@@ -33,8 +36,13 @@ logs:
 	@echo "Streaming backend logs (Press Ctrl+C to stop)..."
 	kubectl logs -f -l app=weather-backend
 
-# 6. Tears everything down to free up RAM
+# 6. Warms the Redis cache to ensure fast first-time responses
+warm:
+	@echo "Warming the cache..."
+	API_URL="http://weather.local" uv run python src/warm_cache.py
+
+# 7. Tears everything down to free up RAM
 clean:
 	@echo "Destroying infrastructure and stopping Minikube..."
 	terraform -chdir=terraform destroy -auto-approve
-	minikube stop
+	minikube delete

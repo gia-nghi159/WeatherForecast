@@ -251,9 +251,14 @@ def get_health_status():
         except Exception as e:
             logger.warning(f"Could not parse evaluations log: {e}")
 
+    redis_type_str = "none"
+    if cache:
+        redis_type_str = type(cache).__name__ 
+
     return {
         "status": "healthy" if (pipe is not None and redis_status) else "degraded",
         "redis_connected": redis_status,
+        "redis_type": redis_type_str,
         "model_loaded": pipe is not None,
         "model_version": MODEL_VERSION,
         "live_production_mae_c": live_mae,

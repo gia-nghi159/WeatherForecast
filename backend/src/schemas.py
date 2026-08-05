@@ -39,6 +39,7 @@ class TodayWeatherResponse(BaseModel):
 class HealthStatusResponse(BaseModel):
     status: str
     redis_connected: bool
+    redis_type: str
     model_loaded: bool
     model_version: str
     live_production_mae_c: Optional[float] = None
