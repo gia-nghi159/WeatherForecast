@@ -234,17 +234,31 @@ def get_health_status():
             redis_status = False
 
     live_mae = None
-    if EVALUATIONS_LOG.exists():
+    mae_cache_key = "weather:health:mae"
+    
+    if cache:
+        cached_mae = cache.get(mae_cache_key)
+        if cached_mae:
+            live_mae = float(cached_mae)
+
+    if live_mae is None and EVALUATIONS_LOG.exists():
         try:
             eval_df = pd.read_json(EVALUATIONS_LOG, lines=True)
             if not eval_df.empty:
                 live_mae = round(float(eval_df["absolute_error_c"].mean()), 2)
+                if cache and live_mae is not None:
+                    cache.setex(mae_cache_key, 60, str(live_mae))
         except Exception as e:
             logger.warning(f"Could not parse evaluations log: {e}")
+
+    redis_type_str = "none"
+    if cache:
+        redis_type_str = type(cache).__name__ 
 
     return {
         "status": "healthy" if (pipe is not None and redis_status) else "degraded",
         "redis_connected": redis_status,
+        "redis_type": redis_type_str,
         "model_loaded": pipe is not None,
         "model_version": MODEL_VERSION,
         "live_production_mae_c": live_mae,

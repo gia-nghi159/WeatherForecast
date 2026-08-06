@@ -13,6 +13,10 @@ spec:
       annotations:
         rollout/id: "{{ uuidv4 }}" 
     spec:
+      initContainers:
+      - name: wait-for-redis
+        image: busybox:1.28
+        command: ['sh', '-c', 'until nslookup my-redis-master; do echo waiting for redis; sleep 2; done;']
       containers:
       - name: fastapi-app
         image: "weather-backend:latest"
@@ -21,14 +25,14 @@ spec:
         - containerPort: 8000
         env:
         - name: REDIS_URL
-          value: "redis://weather-redis:6379"
+          value: "redis://my-redis-master:6379"
         resources:
           requests:
-            cpu: "100m"
-            memory: "128Mi"
+            cpu: "500m"
+            memory: "256Mi"
           limits:
             cpu: "1000m"
-            memory: "512Mi"
+            memory: "1024Mi"
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -47,4 +51,4 @@ spec:
       name: cpu
       target:
         type: Utilization
-        averageUtilization: 50
+        averageUtilization: 70

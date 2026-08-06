@@ -6,15 +6,25 @@ class WeatherLoadTester(HttpUser):
 
     @task(3)
     def test_today_endpoint(self):
-        """Simulates users fetching today's weather summary (Hits 75% of the time)"""
+        """Simulates users fetching today's weather summary"""
         self.client.get("/today?units=imperial")
 
     @task(1)
+    def test_predict_metrics_endpoint(self):
+        """Simulates users triggering ML prediction (metric units)"""
+        self.client.post("/predict?units=metric")
+
+    @task(1)
     def test_predict_endpoint(self):
-        """Simulates users triggering ML prediction (Hits 25% of the time)"""
+        """Simulates users triggering ML prediction (imperial units)"""
         self.client.post("/predict?units=imperial")
 
     @task(1)
     def test_health_endpoint(self):
         """Simulates health check ping"""
         self.client.get("/health")
+
+    @task(1)
+    def test_root_endpoint(self):
+        """Simulates users accessing the root endpoint"""
+        self.client.get("/")
