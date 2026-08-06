@@ -163,10 +163,12 @@ _Navigate to `http://localhost:8089` in your browser to start the swarm and moni
 
 **Locust Load Testing Results**
 During a simulated traffic spike with Locust (150 peak concurrent users, spawn rate 5 users/sec), the system effectively managed the load.
+
 ![Locust Load Test Performance](./assets/Locust_150_5_rampup.jpeg)
 
 **Horizontal Pod Autoscaler (HPA) in Action**
 To handle this traffic spike, the Horizontal Pod Autoscaler (HPA) automatically provisioned additional replica pods to maintain service availability and reduce latency.
+
 ![HPA At Work](./assets/HPA_atwork.jpeg)
 
 **Important Metrics for CI/CD Autoscale:**
