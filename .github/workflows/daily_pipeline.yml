@@ -36,6 +36,15 @@ jobs:
           REDIS_URL: ${{ secrets.REDIS_URL }}
         run: uv run python src/pipeline.py daily
 
+      - name: Warm Up Production Cache
+        working-directory: ./backend
+        env:
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+        run: |
+          uv run uvicorn src.main:app --host 127.0.0.1 --port 8000 &
+          sleep 5
+          uv run python src/warm_cache.py
+
       - name: Commit and push updated files
         run: |
           git config --global user.name "github-actions[bot]"

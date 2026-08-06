@@ -35,11 +35,11 @@ resource "helm_release" "weather_app" {
   
   set {
     name  = "resources.requests.cpu"
-    value = "500m"
+    value = "600m"
   }
   set {
     name  = "resources.limits.cpu"
-    value = "1000m"
+    value = "1250m"
   }
   set {
     name  = "resources.limits.memory"
