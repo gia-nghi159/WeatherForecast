@@ -1,48 +1,29 @@
-# Makefile
+.PHONY: setup run test warm clean docker-build docker-run
 
-.PHONY: setup deploy test clean
-
-# 1. Boots the cluster and builds the local Docker image
+# Install dependencies using uv
 setup:
-	@echo "Starting Minikube..."
-	minikube start --memory=6144 --cpus=4
-	@echo "Enabling Minikube addons..."
-	minikube addons enable ingress
-	minikube addons enable metrics-server
-	@echo "Building Docker image inside Minikube..."
-	minikube image build -t weather-backend:latest .
-	@echo "Installing local Python dependencies for testing..."
 	uv sync
 
-# 2. Applies the Terraform infrastructure
-deploy:
-	@echo "Provisioning infrastructure with Terraform..."
-	terraform -chdir=terraform init
-	terraform -chdir=terraform apply -auto-approve
-	@echo "Deployment complete! Run 'make tunnel' in a new window."
+# Run the FastAPI server locally
+run:
+	uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 
-# 3. Opens the tunnel (Needs its own terminal window)
-tunnel:
-	@echo "Opening Minikube tunnel (requires sudo password)..."
-	sudo minikube tunnel
-
-# 4. Runs the Locust load test
+# Run Locust load testing
 test:
-	@echo "Starting Locust load test..."
-	uv run locust -f locustfile.py
+	uv run locust -f locustfile.py --host http://localhost:8000
 
-# 5. Streams the live logs from the FastAPI pods
-logs:
-	@echo "Streaming backend logs (Press Ctrl+C to stop)..."
-	kubectl logs -f -l app=weather-backend
-
-# 6. Warms the Redis cache to ensure fast first-time responses
+# Execute cache warming
 warm:
-	@echo "Warming the cache..."
-	API_URL="http://weather.local" uv run python src/warm_cache.py
+	uv run python -m src.warm_cache
 
-# 7. Tears everything down to free up RAM
+# Build and run Docker container locally
+docker-build:
+	docker build -t weather-backend:latest .
+
+docker-run:
+	docker run -p 8000:8000 --env-file .env weather-backend:latest
+
+# Clean up temporary Python cache files
 clean:
-	@echo "Destroying infrastructure and stopping Minikube..."
-	terraform -chdir=terraform destroy -auto-approve
-	minikube delete
+	find . -type d -name "__pycache__" -exec rm -r {} +
+	find . -type f -name "*.pyc" -delete

@@ -2,7 +2,7 @@ name: Daily Pipeline & Ground Truth Evaluation
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # Runs every day at 00:00 UTC
+    - cron: '0 5 * * *'  # Runs every day at 00:00 CDT (05:00 UTC)
   workflow_dispatch:
 
 jobs:
@@ -30,11 +30,11 @@ jobs:
         working-directory: ./backend
         run: uv run pytest
 
-      - name: Execute Daily Telemetry & Evaluation
+      - name: Execute Daily Ingestion & Ground-Truth Evaluation
         working-directory: ./backend
         env:
           REDIS_URL: ${{ secrets.REDIS_URL }}
-        run: uv run python src/pipeline.py daily
+        run: uv run python -m src.pipeline daily
 
       - name: Warm Up Production Cache
         working-directory: ./backend
@@ -43,15 +43,15 @@ jobs:
         run: |
           uv run uvicorn src.main:app --host 127.0.0.1 --port 8000 &
           sleep 5
-          uv run python src/warm_cache.py
+          uv run python -m src.warm_cache
 
-      - name: Commit and push updated files
+      - name: Commit and push updated datasets & evaluation logs
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add backend/
+          git add backend/data/
           git diff --quiet && git diff --staged --quiet || (
-            git commit -m "chore(mlops): automated update [skip ci]" && \
+            git commit -m "chore(mlops): automated daily data & evaluation update [skip ci]" && \
             git pull --rebase origin main && \
             git push
           )
