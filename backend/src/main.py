@@ -9,6 +9,8 @@ import pandas as pd
 import redis
 import requests
 
+from prometheus_fastapi_instrumentator import Instrumentator
+
 from src.config import (
     CACHE_TTL_PREDICT,
     CACHE_TTL_TODAY,
@@ -26,6 +28,9 @@ from src.preprocessing import clean_and_engineer_features
 from src.schemas import HealthStatusResponse, PredictionResponse, TodayWeatherResponse
 
 app = FastAPI(title="Dallas Weather Forecast API", version="1.0.0")
+
+# Instrument Prometheus metrics
+Instrumentator().instrument(app).expose(app)
 
 # 1. CORS Middleware
 app.add_middleware(
@@ -51,7 +56,7 @@ async def add_process_time_header(request: Request, call_next):
 # 3. Redis Connection (Dual-Mode: Cloud vs. Local In-Memory)
 if REDIS_URL:
     try:
-        cache = redis.from_url(REDIS_URL, decode_responses=True)
+        cache = redis.from_url(REDIS_URL, decode_responses=True, socket_connect_timeout=1.0, socket_timeout=1.0)
         cache.ping()
         logger.info("Connected to Redis Cache.")
     except Exception as e:
