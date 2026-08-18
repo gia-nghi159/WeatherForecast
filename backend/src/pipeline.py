@@ -1,7 +1,6 @@
 import json
 import sys
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
 import pandas as pd
 import redis
 import fakeredis
@@ -12,7 +11,6 @@ from src.config import (
     DALLAS_LAT,
     DALLAS_LON,
     EVALUATIONS_LOG,
-    HOURLY_CSV,
     PREDICTIONS_LOG,
     REDIS_URL,
     RETENTION_DAYS,
