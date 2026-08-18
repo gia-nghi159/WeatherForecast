@@ -1,48 +1,68 @@
-# Makefile
+.PHONY: help up down restart logs ps deploy warm test setup run clean
 
-.PHONY: setup deploy test clean
+# Default target: display help
+help:
+	@echo "Available commands:"
+	@echo "  make up        - Build and run the entire container stack in background (FastAPI, Redis, Prometheus, Grafana)"
+	@echo "  make down      - Stop and remove all containers"
+	@echo "  make restart   - Rebuild and restart all containers"
+	@echo "  make logs      - Tail logs from all containers (or specific: make logs c=backend)"
+	@echo "  make ps        - Check status of all containers"
+	@echo "  make warm      - Warm the Redis cache with sample requests"
+	@echo "  make test      - Run Locust load testing against http://localhost:8000"
+	@echo "  make setup     - Install local Python dependencies via uv"
+	@echo "  make run       - Run FastAPI server locally for development"
+	@echo "  make clean     - Clean temporary Python bytecode and artifacts"
 
-# 1. Boots the cluster and builds the local Docker image
+# ------------------------------------------------------------------------------
+# Container Lifecycle (Docker Compose Stack)
+# ------------------------------------------------------------------------------
+
+# Build and start all services in the background
+up:
+	docker compose up -d --build
+
+# Alias for up
+deploy: up
+
+# Stop and remove all running containers and networks
+down:
+	docker compose down
+
+# Rebuild and restart the stack
+restart:
+	docker compose down
+	docker compose up -d --build
+
+# Stream live container logs (usage: 'make logs' or 'make logs c=backend')
+logs:
+	docker compose logs -f $(c)
+
+# Display status of containers and exposed ports
+ps:
+	docker compose ps
+
+# ------------------------------------------------------------------------------
+# Local Development & Testing
+# ------------------------------------------------------------------------------
+
+# Install local dependencies
 setup:
-	@echo "Starting Minikube..."
-	minikube start --memory=6144 --cpus=4
-	@echo "Enabling Minikube addons..."
-	minikube addons enable ingress
-	minikube addons enable metrics-server
-	@echo "Building Docker image inside Minikube..."
-	minikube image build -t weather-backend:latest .
-	@echo "Installing local Python dependencies for testing..."
 	uv sync
 
-# 2. Applies the Terraform infrastructure
-deploy:
-	@echo "Provisioning infrastructure with Terraform..."
-	terraform -chdir=terraform init
-	terraform -chdir=terraform apply -auto-approve
-	@echo "Deployment complete! Run 'make tunnel' in a new window."
+# Run FastAPI server locally with auto-reload
+run:
+	uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 
-# 3. Opens the tunnel (Needs its own terminal window)
-tunnel:
-	@echo "Opening Minikube tunnel (requires sudo password)..."
-	sudo minikube tunnel
-
-# 4. Runs the Locust load test
-test:
-	@echo "Starting Locust load test..."
-	uv run locust -f locustfile.py
-
-# 5. Streams the live logs from the FastAPI pods
-logs:
-	@echo "Streaming backend logs (Press Ctrl+C to stop)..."
-	kubectl logs -f -l app=weather-backend
-
-# 6. Warms the Redis cache to ensure fast first-time responses
+# Execute cache warming against the running API
 warm:
-	@echo "Warming the cache..."
-	API_URL="http://weather.local" uv run python src/warm_cache.py
+	uv run python -m src.warm_cache
 
-# 7. Tears everything down to free up RAM
+# Run Locust load testing
+test:
+	uv run locust -f locustfile.py --host http://127.0.0.1:8000
+
+# Clean up Python cache and temporary files
 clean:
-	@echo "Destroying infrastructure and stopping Minikube..."
-	terraform -chdir=terraform destroy -auto-approve
-	minikube delete
+	find . -type d -name "__pycache__" -exec rm -r {} +
+	find . -type f -name "*.pyc" -delete

@@ -19,7 +19,8 @@ def clean_and_engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     df = df.ffill()
 
     def pct_diff(old, new):
-        return (new - old) / old
+        # Safe division: Return 0.0 if old value is 0
+        return np.where(old != 0, (new - old) / old, 0.0)
 
     def compute_rolling(df_in, horizon, col):
         label = f"rolling_{horizon}_{col}"
@@ -47,5 +48,5 @@ def clean_and_engineer_features(df: pd.DataFrame) -> pd.DataFrame:
             df.index.day_of_year, group_keys=False
         ).transform(expand_mean)
 
-    df = df.replace([np.inf, -np.inf], np.nan)
-    return df.dropna()
+    df = df.replace([np.inf, -np.inf], 0.0).fillna(0.0)
+    return df

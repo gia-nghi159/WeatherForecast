@@ -1,20 +1,23 @@
 import json
+import time
 from datetime import datetime, timedelta
+from fastapi import FastAPI, HTTPException, Query, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
+import fakeredis
 import joblib
 import pandas as pd
 import redis
-import fakeredis
-import time
-from fastapi import FastAPI, HTTPException, Query, Request, Response
-from fastapi.middleware.cors import CORSMiddleware
+import requests
 
-from src.schemas import PredictionResponse, TodayWeatherResponse, HealthStatusResponse
+from prometheus_fastapi_instrumentator import Instrumentator, metrics
+
 from src.config import (
     CACHE_TTL_PREDICT,
     CACHE_TTL_TODAY,
     DAILY_CSV,
+    DALLAS_LAT,
+    DALLAS_LON,
     EVALUATIONS_LOG,
-    HOURLY_CSV,
     MODEL_PATH,
     MODEL_VERSION,
     PREDICTIONS_LOG,
@@ -22,8 +25,34 @@ from src.config import (
     logger,
 )
 from src.preprocessing import clean_and_engineer_features
+from src.schemas import HealthStatusResponse, PredictionResponse, TodayWeatherResponse
 
 app = FastAPI(title="Dallas Weather Forecast API", version="1.0.0")
+
+# Custom high-resolution latency buckets for sub-millisecond and fast API responses
+CUSTOM_LATENCY_BUCKETS = (
+    0.001,
+    0.0025,
+    0.005,
+    0.01,
+    0.015,
+    0.02,
+    0.03,
+    0.05,
+    0.1,
+    0.5,
+    1.0,
+    float("inf"),
+)
+
+# Instrument Prometheus metrics with custom histogram buckets
+instrumentator = Instrumentator().add(
+    metrics.default(
+        latency_highr_buckets=CUSTOM_LATENCY_BUCKETS,
+        latency_lowr_buckets=CUSTOM_LATENCY_BUCKETS,
+    )
+)
+instrumentator.instrument(app).expose(app)
 
 # 1. CORS Middleware
 app.add_middleware(
@@ -49,11 +78,11 @@ async def add_process_time_header(request: Request, call_next):
 # 3. Redis Connection (Dual-Mode: Cloud vs. Local In-Memory)
 if REDIS_URL:
     try:
-        cache = redis.from_url(REDIS_URL, decode_responses=True)
+        cache = redis.from_url(REDIS_URL, decode_responses=True, socket_connect_timeout=1.0, socket_timeout=1.0)
         cache.ping()
-        logger.info("Connected to Production Cloud Redis.")
+        logger.info("Connected to Redis Cache.")
     except Exception as e:
-        logger.warning(f"Cloud Redis connection failed ({e}). Fallback to non-cached execution.")
+        logger.warning(f"Redis connection failed ({e}). Fallback to non-cached execution.")
         cache = None
 else:
     try:
@@ -73,24 +102,21 @@ except Exception as e:
 
 
 def log_predictions_to_file(predictions_c: list):
-    """
-    Updates the log file by keeping the most recent prediction for each 
+    """Updates the log file by keeping the most recent prediction for each 
+
     (target_date, horizon_days) combination.
     """
     today = datetime.now().date()
     
-    # 1. Load existing logs into a map (dictionary)
     logs_map = {}
     if PREDICTIONS_LOG.exists():
         with open(PREDICTIONS_LOG, "r") as f:
             for line in f:
                 if line.strip():
                     entry = json.loads(line)
-                    # Use a composite key to ensure we track the horizon separately
                     key = (entry["target_date"], entry["horizon_days"])
                     logs_map[key] = entry
 
-    # 2. Add or Overwrite with today's new predictions
     for i, pred_temp in enumerate(predictions_c):
         target_date = str(today + timedelta(days=i + 1))
         horizon = i + 1
@@ -104,7 +130,6 @@ def log_predictions_to_file(predictions_c: list):
             "model_version": MODEL_VERSION,
         }
 
-    # 3. Write the cleaned map back to the file
     PREDICTIONS_LOG.parent.mkdir(parents=True, exist_ok=True)
     with open(PREDICTIONS_LOG, "w") as f:
         for entry in logs_map.values():
@@ -131,22 +156,23 @@ def predict_7days_weather(
     if pipe is None:
         raise HTTPException(status_code=500, detail="Model file is not initialized.")
 
+    # In src/main.py inside predict_7days_weather()
+
     try:
         df = pd.read_csv(DAILY_CSV)
-        df_60 = df.tail(60).copy()
-        df_60 = clean_and_engineer_features(df_60)
+        
+        # Compute features over full dataset so expanding means match training
+        df_engineered = clean_and_engineer_features(df)
 
-        X = df_60[pipe.feature_names_in_].tail(1)
+        # Extract the most recent engineered row for live prediction
+        X = df_engineered[pipe.feature_names_in_].tail(1)
         if X.isnull().any().any():
             X = X.ffill().fillna(0)
 
         # Raw prediction in Celsius
         raw_predictions_c = pipe.predict(X)[0]
-
-        # Log predictions for future ground truth evaluation
         log_predictions_to_file(raw_predictions_c)
 
-        # Unit Conversion
         predictions = raw_predictions_c
         if units == "imperial":
             predictions = predictions * 9 / 5 + 32
@@ -163,7 +189,6 @@ def predict_7days_weather(
             "status": "success",
         }
 
-        # Store Result in Redis Cache
         if cache:
             cache.setex(cache_key, CACHE_TTL_PREDICT, json.dumps(response))
 
@@ -180,48 +205,61 @@ def get_today_weather(
 ):
     cache_key = f"weather:today:{units}"
 
-    # Check Cache
+    # 1. Check Redis Cache First
     if cache:
         cached_response = cache.get(cache_key)
         if cached_response:
             logger.info(f"Cache HIT for key: {cache_key}")
             return Response(content=cached_response, media_type="application/json")
 
-    if not HOURLY_CSV.exists():
-        raise HTTPException(status_code=404, detail="Hourly data missing.")
-
-    df = pd.read_csv(HOURLY_CSV)
-    if df.empty:
-        return {"message": "No hourly data available"}
-
-    row = df.tail(1).squeeze()
-    temp = row["temp"]
-    prcp = row.get("prcp", 0)
-    wspd = row.get("wspd", 0)
-    wdir = row.get("wdir", 0)
-    pres = row.get("pres", 0)
-
-    if units == "imperial":
-        temp = temp * 9 / 5 + 32
-        prcp = prcp * 0.0393701 if pd.notna(prcp) else 0
-        wspd = wspd * 0.621371 if pd.notna(wspd) else 0
-        pres = pres * 0.02953 if pd.notna(pres) else 0
-
-    response = {
-        "datetime": row["time"],
-        "temp": round(float(temp), 1),
-        "prcp": round(float(prcp), 2),
-        "wspd": round(float(wspd), 2),
-        "wdir": round(float(wdir), 0),
-        "pres": round(float(pres), 2),
-        "units": "°F" if units == "imperial" else "°C",
-        "status": "success",
+    # 2. Cache MISS: Fetch live telemetry from Open-Meteo API
+    logger.info(f"Cache MISS for key: {cache_key}. Fetching live telemetry from Open-Meteo...")
+    url = "https://api.open-meteo.com/v1/forecast"
+    params = {
+        "latitude": DALLAS_LAT,
+        "longitude": DALLAS_LON,
+        "current": "temperature_2m,precipitation,surface_pressure,wind_speed_10m,wind_direction_10m",
+        "timezone": "America/Chicago",
     }
 
-    if cache:
-        cache.setex(cache_key, CACHE_TTL_TODAY, json.dumps(response))
+    try:
+        res = requests.get(url, params=params, timeout=5)
+        res.raise_for_status()
+        current = res.json().get("current", {})
 
-    return response
+        temp = current.get("temperature_2m", 0)
+        prcp = current.get("precipitation", 0)
+        wspd = current.get("wind_speed_10m", 0)
+        wdir = current.get("wind_direction_10m", 0)
+        pres = current.get("surface_pressure", 0)
+
+        # Unit Conversion
+        if units == "imperial":
+            temp = temp * 9 / 5 + 32
+            prcp = prcp * 0.0393701
+            wspd = wspd * 0.621371
+            pres = pres * 0.02953
+
+        response = {
+            "datetime": current.get("time", str(datetime.now())),
+            "temp": round(float(temp), 1),
+            "prcp": round(float(prcp), 2),
+            "wspd": round(float(wspd), 2),
+            "wdir": round(float(wdir), 0),
+            "pres": round(float(pres), 2),
+            "units": "°F" if units == "imperial" else "°C",
+            "status": "success",
+        }
+
+        # 3. Store in Redis Cache
+        if cache:
+            cache.setex(cache_key, CACHE_TTL_TODAY, json.dumps(response))
+
+        return response
+
+    except Exception as e:
+        logger.error(f"Failed to fetch live telemetry: {e}")
+        raise HTTPException(status_code=500, detail="Weather telemetry service unavailable.")
 
 
 @app.get("/health", response_model=HealthStatusResponse)
@@ -247,7 +285,7 @@ def get_health_status():
             if not eval_df.empty:
                 live_mae = round(float(eval_df["absolute_error_c"].mean()), 2)
                 if cache and live_mae is not None:
-                    cache.setex(mae_cache_key, 60, str(live_mae))
+                    cache.setex(mae_cache_key, CACHE_TTL_PREDICT, str(live_mae))
         except Exception as e:
             logger.warning(f"Could not parse evaluations log: {e}")
 
