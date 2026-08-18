@@ -1,54 +1,50 @@
-# 🌤️ WeatherForecast: Automated MLOps & K8s Architecture
+# 🌤️ WeatherForecast: Automated MLOps & Observability Architecture
 
 ![Weather UI Dashboard](./assets/UI.png)
 
-A full-stack, real-time weather dashboard and 7-day Machine Learning temperature forecast for Dallas, TX. This project showcases a complete end-to-end local microservices architecture, featuring Kubernetes orchestration, Infrastructure as Code (IaC), and automated continuous training (CT) pipelines.
+A high-performance, full-stack weather dashboard and 7-day Machine Learning temperature forecasting platform for Dallas, TX. This project demonstrates an end-to-end production MLOps system featuring automated Continuous Training (CT) pipelines, Redis telemetry caching, multi-worker FastAPI concurrency, and full-stack observability with Prometheus and Grafana.
 
 ---
 
 ## ✨ System Architecture & Key Features
 
-- **MLOps & Continuous Training (CT):** Fully automated GitHub Actions pipelines that fetch ground-truth telemetry daily, evaluate live model drift (Mean Absolute Error), and retrain the Scikit-Learn Lasso Regression model weekly with zero-downtime `.joblib` deployment.
-- **Dual-Layer Caching Strategy & Automated Warming:** Redis integration minimizes costly external API calls and ML inference overhead. Current telemetry is cached for 1 hour, while heavy 7-day ML predictions are cached for 24 hours. A seamless cache-warming strategy guarantees 0-latency hits for the first users after data updates. Provisioned via the official Bitnami Redis Helm chart.
-- **High-Performance Networking:** Custom Vite Proxy configuration bypasses macOS IPv6 DNS resolution and eliminates CORS bottlenecks, bridging the React frontend directly to the Kubernetes Ingress Controller.
-- **Resilient Infrastructure:** Backend containerized and deployed on a local Minikube cluster using Helm and Terraform. Uvicorn worker counts and Redis CPU/Memory limits are precisely tuned to prevent OOM Kills and Liveness Probe timeouts during load tests. Configured with Horizontal Pod Autoscaling (HPA) to handle simulated traffic spikes dynamically.
-- **Responsive UI:** Built with React & TypeScript, featuring dynamic glassmorphism styling, weather icons, and instant client-side unit conversions (°C ⇄ °F, km/h ⇄ mph).
+- **MLOps & Continuous Training (CT):** Automated GitHub Actions pipelines that fetch real-world weather observations daily, evaluate ground-truth model drift (Mean Absolute Error), and retrain the Scikit-Learn Lasso Regression model weekly with automated versioning.
+- **Sub-Millisecond In-Memory Caching:** Redis caching strategy that eliminates redundant external API calls and heavy Pandas feature engineering. Live telemetry is cached for 1 hour, and 7-day ML forecasts are cached with a 24-hour TTL (`CACHE_TTL_PREDICT = 86400`).
+- **High-Resolution Observability Stack:** Prometheus and Grafana integration via `prometheus-fastapi-instrumentator` with custom sub-millisecond histogram buckets (`1ms` to `1s+`), providing true p50, p90, p95, and p99 latency monitoring in real time.
+- **Robust DNS & Networking Architecture:** Optimized Docker internal bridge networking for inter-service container resolution (`backend:8000`, `prometheus:9090`, `redis:6379`), paired with direct IPv4 loopback (`127.0.0.1`) host bindings to eliminate macOS `mDNSResponder` / IPv6 DNS bottlenecks.
+- **High-Throughput Concurrency:** Uvicorn configured with 4 asynchronous worker processes (`--workers 4`), handling 300+ RPS under heavy load with zero dropped connections.
+- **Responsive React Frontend:** Built with React 19, TypeScript, and Vite, featuring dynamic glassmorphism styling, animated weather visuals, and instant client-side unit toggling (°C ⇄ °F, km/h ⇄ mph, hPa ⇄ inHg).
 
 ---
 
 ## 🤖 CI/CD & MLOps Pipelines (GitHub Actions)
 
-This project implements a fully automated Continuous Training (CT) and data ingestion architecture. To ensure system stability, every pipeline includes an automated **`pytest` safety gate** that prevents code execution or commits if the unit tests fail.
+Every automated pipeline runs with automated **`pytest` safety gates** to guarantee code correctness before committing updates:
 
-- **Hourly Telemetry Fetch (`hourly_fetch.yml`):** Runs every hour to fetch the latest weather observations, updates the local CSV dataset, and strategically evicts the 1-hour Redis telemetry cache. It then automatically runs a cache-warming script against the production Cloud Redis to pre-compute and store the new data.
-- **Daily Ground Truth Evaluation (`daily_pipeline.yml`):** Runs every night at midnight UTC. It fetches the daily maximum temperature, compares it against the model's prediction from the previous day, logs the Mean Absolute Error (MAE) for drift monitoring, and evicts the 24-hour prediction cache. It also executes the cache-warming sequence to pre-compute the next 7 days of predictions.
-- **Weekly Model Retraining (`weekly_retrain.yml`):** Runs every Sunday. It automatically re-runs the feature engineering pipeline on the newly expanded dataset, retrains the Scikit-Learn Lasso model, and commits the updated `.joblib` model back to the repository with zero downtime.
+- **Daily Pipeline & Ground Truth Evaluation (`daily_pipeline.yml`):** Runs every night at 00:00 CDT (05:00 UTC). It fetches the previous day's verified temperature observations from Open-Meteo, calculates the Mean Absolute Error (MAE) against previous forecasts for drift tracking, and automatically commits updated datasets to the repository. Runs against a transient GitHub Actions Redis service container.
+- **Weekly Model Retraining (`weekly_retrain.yml`):** Runs every Sunday at 00:30 CDT (05:30 UTC). Automatically runs feature engineering over the expanded historical dataset, retrains the Scikit-Learn multi-output Lasso regression pipeline, and commits the serialized `.joblib` model artifact back to the repository with zero downtime.
 
 ---
 
 ## 🏗️ Tech Stack
 
 ### Frontend
+- **Framework:** React 19, TypeScript, Vite
+- **Styling:** Vanilla CSS (Glassmorphism design system)
+- **State & Networking:** React Hooks, Vite HTTP Proxy
 
-- **Core:** React, TypeScript, Vite
-- **Styling:** Tailwind CSS / Custom CSS
-- **State/Routing:** React Hooks
+### Backend & Machine Learning
+- **API Framework:** Python 3.11/3.13, FastAPI, Uvicorn (Multi-Worker)
+- **Data Science & ML:** Pandas, NumPy, Scikit-Learn (Lasso Multi-Output Regressor)
+- **Caching Layer:** Redis 7 (Alpine) with `fakeredis` local fallback
+- **Package Management:** `uv` (Fast Python package resolver)
 
-### Backend & ML
-
-- **Core:** Python, FastAPI, Uvicorn
-- **Data Processing:** Pandas, NumPy
-- **Machine Learning:** Scikit-Learn (Lasso Regression)
-- **Caching:** Redis / FakeRedis (Local Fallback)
-- **Package Management:** `uv`
-
-### DevOps & Infrastructure
-
-- **Containerization:** Docker
-- **Orchestration:** Kubernetes (Minikube), Helm Charts, Ingress-Nginx
-- **Infrastructure as Code (IaC):** Terraform
-- **CI/CD:** GitHub Actions (Cron triggers, automated commits)
-- **Testing & Monitoring:** Locust, Pytest, Prometheus, Grafana
+### DevOps & Observability
+- **Container Orchestration:** Docker Compose (Multi-Service Stack)
+- **Metrics Collection:** Prometheus (`prom/prometheus:latest`)
+- **Telemetry Dashboards:** Grafana (`grafana/grafana:latest`)
+- **Load Testing:** Locust
+- **CI/CD:** GitHub Actions (Service containers, autostash git syncing)
 
 ---
 
@@ -56,134 +52,171 @@ This project implements a fully automated Continuous Training (CT) and data inge
 
 ```bash
 WeatherForecast/
-├── .github/workflows/          # Automated MLOps cron jobs (Hourly, Daily, Weekly)
-├── backend/                    # Python FastAPI & ML Pipeline
-│   ├── data/                   # Raw CSVs, JSONL logs, and Grafana dashboards
-│   ├── models/                 # Serialized ML models (.joblib)
-│   ├── src/                    # FastAPI application and ML source code
-│   │   ├── main.py             # FastAPI routing and middleware
-│   │   ├── pipeline.py         # Telemetry fetching and ground-truth evaluation
-│   │   ├── preprocessing.py    # Feature engineering for ML
+├── .github/workflows/          # Automated MLOps cron jobs
+│   ├── daily_pipeline.yml      # Daily data ingestion & MAE evaluation
+│   └── weekly_retrain.yml      # Weekly automated model retraining
+├── assets/                     # UI screenshots and performance benchmark graphs
+├── backend/                    # Python FastAPI & ML Service
+│   ├── data/                   # Historical observations & evaluation logs
+│   │   ├── meteostat_export.csv # 3-year sliding historical dataset
+│   │   ├── predictions_log.jsonl # Historical model predictions log
+│   │   └── evaluations_log.jsonl # Ground-truth daily error tracking
+│   ├── models/                 # Serialized ML model artifacts (.joblib)
+│   ├── src/                    # Backend application source code
+│   │   ├── config.py           # Centralized configuration & Redis TTLs
+│   │   ├── main.py             # FastAPI routes, Prometheus instrumentation & health checks
+│   │   ├── pipeline.py         # Data ingestion, Open-Meteo sync & MAE evaluation
+│   │   ├── preprocessing.py    # Feature engineering (rolling means, lags)
 │   │   ├── schemas.py          # Pydantic response models
-│   │   └── train.py            # Model retraining script
-│   │   └── warm_cache.py       # Cache-warm script
-│   ├── terraform/              # IaC to provision Kubernetes resources
-│   ├── weather-chart/          # Helm chart for Kubernetes deployment
-│   ├── Dockerfile              # Backend container build instructions
-│   ├── locustfile.py           # Load testing configuration
-│   ├── Makefile                # Automation commands for local setup
+│   │   ├── train.py            # Scikit-Learn Lasso training script
+│   │   └── warm_cache.py       # Cache pre-warming utility script
+│   ├── tests/                  # Automated pytest test suite
+│   │   ├── test_api.py         # Endpoint and Redis integration tests
+│   │   └── test_preprocessing.py # Feature engineering unit tests
+│   ├── Dockerfile              # Production multi-worker backend container
+│   ├── docker-compose.yml      # Multi-container orchestration (API, Redis, Prom, Grafana)
+│   ├── grafana_dashboard.json  # Pre-configured Grafana monitoring dashboard
+│   ├── locustfile.py           # Locust load testing scenario
+│   ├── Makefile                # Unified developer CLI for stack management
+│   ├── prometheus.yml          # Prometheus scrape configuration
+│   ├── pyproject.toml          # Python package specification
 │   └── uv.lock                 # Strict dependency locking via uv
-└── frontend/                   # React + TypeScript Web App
-    ├── public/                 # Static assets
+└── frontend/                   # React + TypeScript Web Application
     ├── src/
-    │   ├── components/         # Modular React components
-    │   └── App.tsx             # Root application component
-    ├── package.json            # Node dependencies
-    └── vite.config.ts          # Vite proxy and bundler configuration
+    │   ├── components/         # Modular UI components (Current, Forecast, Details)
+    │   ├── types/              # TypeScript weather domain interfaces
+    │   ├── utils/              # Unit conversion & weather visual helpers
+    │   └── App.tsx             # Root React application
+    ├── package.json            # Node.js dependencies
+    └── vite.config.ts          # Vite configuration & backend proxy
 ```
 
 ---
 
 ## 💻 Local Development Setup
 
-This project is designed to be run entirely locally. The backend utilizes a `Makefile` to automate the complex orchestration of Docker, Minikube, and Terraform.
+The backend utilizes a clean `Makefile` to manage the lifecycle of all Docker containers, caching, and testing tools.
 
 ### Prerequisites
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) or OrbStack
-- [Minikube](https://minikube.sigs.k8s.io/docs/start/) & `kubectl`
-- [Terraform](https://developer.hashicorp.com/terraform/downloads)
 - [uv](https://github.com/astral-sh/uv) (Python package manager)
-- [Node.js](https://nodejs.org/) & `npm`
+- [Node.js](https://nodejs.org/) (v18+) & `npm`
 
-### 1. Boot up the Backend (Kubernetes / API)
+---
 
-Navigate to the backend directory and use the Makefile to provision the infrastructure automatically.
+### 1. Start the Backend Stack (Docker Compose)
+
+Navigate to the `backend/` directory and spin up the complete containerized environment (FastAPI, Redis, Prometheus, and Grafana):
 
 ```bash
 cd backend
 
-# Start Minikube, build the Docker image locally, and install testing dependencies
-make setup
+# Build and start all 4 services in the background
+make up
 
-# Provision the Kubernetes resources (Helm & Prometheus) via Terraform
-make deploy
-
-# Open the network tunnel to expose the local Ingress (requires sudo password)
-# NOTE: Leave this terminal window running!
-make tunnel
-
-# (Optional) Pre-compute and inject predictions into the local Redis cache
+# (Optional) Pre-warm the Redis cache for instant first-hit responses
 make warm
 ```
 
-### 1.5. Configure Local DNS
-
-To access the services through their Ingress hostnames locally, you must map them to localhost in your machine's hosts file.
-
+Verify that all services are healthy:
 ```bash
-sudo sh -c 'echo "127.0.0.1 weather.local grafana.local" >> /etc/hosts'
+make ps
 ```
 
-- **Grafana Dashboard:** Navigate to `http://grafana.local` (Username: `admin`).
-  To retrieve your automatically generated Grafana password, run the following command in your terminal:
-```bash
-kubectl get secret -n monitoring prometheus-grafana -o go-template='{{index .data "admin-password" | base64decode}}{{"\n"}}'
-```
-- **Weather API:** Navigate to `http://weather.local/health`
+| Service | Container Name | Host URL | Description |
+| :--- | :--- | :--- | :--- |
+| **FastAPI Backend** | `weather_api_backend` | [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) | Interactive Swagger API & metrics |
+| **Grafana Dashboard** | `weather_grafana` | [http://127.0.0.1:3000](http://127.0.0.1:3000) | Live SRE & MLOps performance dashboards |
+| **Prometheus Server** | `weather_prometheus` | [http://127.0.0.1:9090](http://127.0.0.1:9090) | PromQL query engine & target scrapers |
+| **Redis Cache** | `weather_redis` | `127.0.0.1:6379` | In-memory telemetry and forecast caching |
 
-### 2. Start the Frontend (React UI)
+---
 
-Open a **new** terminal window, navigate to the frontend directory, and start the Vite development server. The `vite.config.ts` is configured to proxy API requests to the Kubernetes Ingress automatically.
+### 2. Configure Grafana Dashboard
+
+1. Open **[http://127.0.0.1:3000](http://127.0.0.1:3000)** in your browser (*Default login: `admin` / `admin`*).
+2. Go to **Connections $\to$ Data Sources $\to$ Add data source $\to$ Prometheus**.
+3. In **Prometheus server URL**, enter the internal Docker DNS name:
+   ```text
+   http://prometheus:9090
+   ```
+4. Click **Save & test** (Confirm green checkmark).
+5. Go to **Dashboards $\to$ New $\to$ Import**, upload [`backend/grafana_dashboard.json`](./backend/grafana_dashboard.json), select the Prometheus datasource, and click **Import**.
+
+---
+
+### 3. Start the Frontend (React UI)
+
+In a new terminal window:
 
 ```bash
 cd frontend
 
-# Install Node dependencies
+# Install dependencies
 npm install
 
-# Start the frontend dev server
+# Launch Vite development server
 npm run dev
 ```
 
-_The Web UI is now accessible at `http://localhost:5173` (or the port Vite provides)._
+Open **[http://localhost:5173](http://localhost:5173)** to view the live weather application.
 
-### 3. Optional: Run Load Tests
+---
 
-To verify Horizontal Pod Autoscaling (HPA) and test the backend's resilience, you can trigger a local swarm test using Locust.
+### 4. Run Load Testing & Stress Verification
+
+Simulate concurrent production traffic against the API to observe live throughput and latency curves in Grafana:
 
 ```bash
 cd backend
 make test
 ```
 
-_Navigate to `http://localhost:8089` in your browser to start the swarm and monitor response times._
+1. Open **[http://127.0.0.1:8089](http://127.0.0.1:8089)** in your browser.
+2. Set **Number of users** to `100` and **Spawn rate** to `5`.
+3. Set **Host** to `http://127.0.0.1:8000`.
+4. Click **Start Swarming** and watch live percentiles in Grafana.
 
-### Performance and Autoscaling
+---
 
-**Locust Load Testing Results**
-During a simulated traffic spike with Locust (150 peak concurrent users, spawn rate 5 users/sec), the system effectively managed the load.
+## ⚡ Performance & Benchmark Results
+
+### High-Concurrency Stress Test (100 Users, ~330 RPS)
+Under sustained high-frequency load testing across 370,000+ requests:
+
+```text
+========================================================================================================================
+Type     Name                     # reqs      # fails |    Avg     Min     Max    Med |   req/s  failures/s |  p95   p99
+---------|-----------------------|-------|-------------|-------|-------|-------|-------|--------|-----------|------|------
+GET      /                        53,384     0(0.00%) |      3       0     145      3 |   47.10        0.00 |  8ms  12ms
+GET      /health                  53,163     0(0.00%) |      4       1     152      4 |   46.90        0.00 |  9ms  14ms
+POST     /predict?units=imperial  52,942     0(0.00%) |      4       0     144      4 |   46.71        0.00 |  9ms  13ms
+POST     /predict?units=metric    53,258     0(0.00%) |      4       0     136      4 |   46.98        0.00 |  9ms  13ms
+GET      /today?units=imperial   159,035     0(0.00%) |      4       0     155      4 |  140.30        0.00 |  9ms  13ms
+---------|-----------------------|-------|-------------|-------|-------|-------|-------|--------|-----------|------|------
+         Aggregated              371,782     0(0.00%) |      4       0     155      4 |  327.99        0.00 |  9ms  13ms
+========================================================================================================================
+```
 
 ![Locust Load Test Performance](./assets/Locust_150_5_rampup.jpeg)
 
-**Horizontal Pod Autoscaler (HPA) in Action**
-To handle this traffic spike, the Horizontal Pod Autoscaler (HPA) automatically provisioned additional replica pods to maintain service availability and reduce latency.
+- **0.00% Error Rate:** 371,782 consecutive requests processed without a single failure or timeout.
+- **Ultra-Low Latency:** Median response time of **4ms**, with **p95 at 9ms** and **p99 tail latency at 13ms**.
+- **High-Resolution Histograms:** Sub-millisecond Prometheus buckets eliminate interpolation artifacts in Grafana, displaying exact response distribution curves.
 
-![HPA At Work](./assets/HPA_atwork.jpeg)
+---
 
-**Important Metrics for CI/CD Autoscale:**
-To ensure responsive and efficient autoscaling in a CI/CD pipeline, the following metrics are configured and monitored:
-- **CPU & Memory Utilization:** The HPA is configured to trigger a scale-up when CPU utilization reaches **70%**. Pods are provisioned with **600m CPU / 256Mi Memory** requests and hard limits at **1250m CPU / 1024Mi Memory**.
-- **Request Latency (Response Time):** During the load test (150 peak users, 5 users/sec spawn rate), autoscaling ensures latency remains within acceptable thresholds even under heavy load.
-- **Request Rate (RPS):** The Locust test generated continuous traffic, with users making requests every 0.1 to 0.5 seconds across 5 API endpoints to validate scaling under high RPS.
-- **Error Rates (5xx / 4xx):** The HPA provisions enough replicas to ensure the error rate remains at 0% during peak traffic spikes.
-- **Pod Readiness/Startup Time:** Uvicorn worker counts and Redis resource limits (500m CPU / 512Mi Memory) are precisely tuned to prevent Liveness Probe timeouts and OOM Kills during rapid scale-up.
+## 🧹 Teardown & Maintenance
 
-### 4. Teardown
-
-When you are finished developing, gracefully destroy the infrastructure to free up your system's RAM.
+To stop the running stack and clean up temporary assets:
 
 ```bash
 cd backend
+
+# Stop and remove all containers and Docker networks
+make down
+
+# Clean temporary Python bytecode and test caches
 make clean
 ```

@@ -60,7 +60,7 @@ warm:
 
 # Run Locust load testing
 test:
-	uv run locust -f locustfile.py --host http://localhost:8000
+	uv run locust -f locustfile.py --host http://127.0.0.1:8000
 
 # Clean up Python cache and temporary files
 clean:

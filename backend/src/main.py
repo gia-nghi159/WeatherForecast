@@ -9,7 +9,7 @@ import pandas as pd
 import redis
 import requests
 
-from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_fastapi_instrumentator import Instrumentator, metrics
 
 from src.config import (
     CACHE_TTL_PREDICT,
@@ -29,8 +29,30 @@ from src.schemas import HealthStatusResponse, PredictionResponse, TodayWeatherRe
 
 app = FastAPI(title="Dallas Weather Forecast API", version="1.0.0")
 
-# Instrument Prometheus metrics
-Instrumentator().instrument(app).expose(app)
+# Custom high-resolution latency buckets for sub-millisecond and fast API responses
+CUSTOM_LATENCY_BUCKETS = (
+    0.001,
+    0.0025,
+    0.005,
+    0.01,
+    0.015,
+    0.02,
+    0.03,
+    0.05,
+    0.1,
+    0.5,
+    1.0,
+    float("inf"),
+)
+
+# Instrument Prometheus metrics with custom histogram buckets
+instrumentator = Instrumentator().add(
+    metrics.default(
+        latency_highr_buckets=CUSTOM_LATENCY_BUCKETS,
+        latency_lowr_buckets=CUSTOM_LATENCY_BUCKETS,
+    )
+)
+instrumentator.instrument(app).expose(app)
 
 # 1. CORS Middleware
 app.add_middleware(
