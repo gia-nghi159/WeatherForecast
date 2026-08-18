@@ -263,7 +263,7 @@ def get_health_status():
             if not eval_df.empty:
                 live_mae = round(float(eval_df["absolute_error_c"].mean()), 2)
                 if cache and live_mae is not None:
-                    cache.setex(mae_cache_key, 60, str(live_mae))
+                    cache.setex(mae_cache_key, CACHE_TTL_PREDICT, str(live_mae))
         except Exception as e:
             logger.warning(f"Could not parse evaluations log: {e}")
 

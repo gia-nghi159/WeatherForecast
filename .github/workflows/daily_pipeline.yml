@@ -11,6 +11,18 @@ jobs:
     permissions:
       contents: write
 
+    # Spawns a lightweight Redis service container inside GitHub Actions (no secrets needed!)
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -28,22 +40,15 @@ jobs:
 
       - name: Run unit tests
         working-directory: ./backend
+        env:
+          REDIS_URL: redis://localhost:6379
         run: uv run pytest
 
       - name: Execute Daily Ingestion & Ground-Truth Evaluation
         working-directory: ./backend
         env:
-          REDIS_URL: ${{ secrets.REDIS_URL }}
+          REDIS_URL: redis://localhost:6379
         run: uv run python -m src.pipeline daily
-
-      - name: Warm Up Production Cache
-        working-directory: ./backend
-        env:
-          REDIS_URL: ${{ secrets.REDIS_URL }}
-        run: |
-          uv run uvicorn src.main:app --host 127.0.0.1 --port 8000 &
-          sleep 5
-          uv run python -m src.warm_cache
 
       - name: Commit and push updated datasets & evaluation logs
         run: |
