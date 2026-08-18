@@ -41,6 +41,6 @@ jobs:
           git add backend/models/
           git diff --quiet && git diff --staged --quiet || (
             git commit -m "chore(mlops): automated model retraining [skip ci]" && \
-            git pull --rebase origin main && \
-            git push
+            git pull --rebase --autostash origin ${{ github.ref_name }} && \
+            git push origin ${{ github.ref_name }}
           )
