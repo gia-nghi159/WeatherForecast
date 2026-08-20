@@ -1,0 +1,1 @@
+{"evaluated_at": "2026-08-20", "target_date": "2026-08-19", "horizon_days": 1, "predicted_tmax_c": 39.39, "actual_tmax_c": 40.5, "absolute_error_c": 1.11, "model_version": "lasso_v1.0"}
