@@ -1,3 +1,6 @@
-{"evaluated_at": "2026-08-21", "target_date": "2026-08-19", "horizon_days": 1, "predicted_tmax_c": 39.39, "actual_tmax_c": 40.5, "absolute_error_c": 1.11, "model_version": "lasso_v1.0"}
-{"evaluated_at": "2026-08-21", "target_date": "2026-08-20", "horizon_days": 2, "predicted_tmax_c": 38.09, "actual_tmax_c": 40.7, "absolute_error_c": 2.61, "model_version": "lasso_v1.0"}
-{"evaluated_at": "2026-08-21", "target_date": "2026-08-20", "horizon_days": 1, "predicted_tmax_c": 39.42, "actual_tmax_c": 40.7, "absolute_error_c": 1.28, "model_version": "lasso_v1.0"}
+{"evaluated_at": "2026-08-22", "target_date": "2026-08-19", "horizon_days": 1, "predicted_tmax_c": 39.39, "actual_tmax_c": 40.5, "absolute_error_c": 1.11, "model_version": "lasso_v1.0"}
+{"evaluated_at": "2026-08-22", "target_date": "2026-08-20", "horizon_days": 2, "predicted_tmax_c": 38.09, "actual_tmax_c": 40.7, "absolute_error_c": 2.61, "model_version": "lasso_v1.0"}
+{"evaluated_at": "2026-08-22", "target_date": "2026-08-21", "horizon_days": 3, "predicted_tmax_c": 37.25, "actual_tmax_c": 38.6, "absolute_error_c": 1.35, "model_version": "lasso_v1.0"}
+{"evaluated_at": "2026-08-22", "target_date": "2026-08-20", "horizon_days": 1, "predicted_tmax_c": 39.42, "actual_tmax_c": 40.7, "absolute_error_c": 1.28, "model_version": "lasso_v1.0"}
+{"evaluated_at": "2026-08-22", "target_date": "2026-08-21", "horizon_days": 2, "predicted_tmax_c": 38.15, "actual_tmax_c": 38.6, "absolute_error_c": 0.45, "model_version": "lasso_v1.0"}
+{"evaluated_at": "2026-08-22", "target_date": "2026-08-21", "horizon_days": 1, "predicted_tmax_c": 40.06, "actual_tmax_c": 38.6, "absolute_error_c": 1.46, "model_version": "lasso_v1.0"}
