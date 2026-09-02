@@ -174,38 +174,51 @@ make test
 ```
 
 1. Open **[http://127.0.0.1:8089](http://127.0.0.1:8089)** in your browser.
-2. Set **Number of users** to `100` and **Spawn rate** to `5`.
-3. Set **Host** to `http://127.0.0.1:8000`.
+2. Set **Number of users** to `150` and **Spawn rate** to `5`.
+3. Set **Host** to `http://weather.local` (or `http://127.0.0.1:8000`).
 4. Click **Start Swarming** and watch live percentiles in Grafana.
 
 ---
 
 ## ⚡ Performance & Benchmark Results
 
-### High-Concurrency Stress Test (100 Users, ~330 RPS)
-Under sustained high-frequency load testing across 370,000+ requests:
+### High-Concurrency Stress Test (150 Users, ~450 RPS)
 
-```text
-========================================================================================================================
-Type     Name                     # reqs      # fails |    Avg     Min     Max    Med |   req/s  failures/s |  p95   p99
----------|-----------------------|-------|-------------|-------|-------|-------|-------|--------|-----------|------|------
-GET      /                        53,384     0(0.00%) |      3       0     145      3 |   47.10        0.00 |  8ms  12ms
-GET      /health                  53,163     0(0.00%) |      4       1     152      4 |   46.90        0.00 |  9ms  14ms
-POST     /predict?units=imperial  52,942     0(0.00%) |      4       0     144      4 |   46.71        0.00 |  9ms  13ms
-POST     /predict?units=metric    53,258     0(0.00%) |      4       0     136      4 |   46.98        0.00 |  9ms  13ms
-GET      /today?units=imperial   159,035     0(0.00%) |      4       0     155      4 |  140.30        0.00 |  9ms  13ms
----------|-----------------------|-------|-------------|-------|-------|-------|-------|--------|-----------|------|------
-         Aggregated              371,782     0(0.00%) |      4       0     155      4 |  327.99        0.00 |  9ms  13ms
-========================================================================================================================
-```
+Under sustained high-frequency load testing across **33,500+ requests** with 150 simulated concurrent users:
+
+| Metric | Locust (Client Round-Trip) | Grafana / Prometheus (Server Processing) |
+| :--- | :--- | :--- |
+| **Current / Peak Throughput** | **450.7 RPS** | **4.86K req/s** (Peak Rate) |
+| **Success Rate / Error Ratio**| **100%** (0% failures) | **100% HTTP 2xx** (0 HTTP 4xx/5xx) |
+| **Average Response Time** | **29.75 ms** | ~8.20 ms |
+| **Median Latency (p50)** | **44 ms** | ~8.00 ms |
+| **p95 Latency** | **51 ms** | **9.53 ms** |
+| **p99 Tail Latency** | **56 ms** | **9.93 ms** |
+| **Max Recorded Latency** | **98 ms** | ~95.4 ms (Burst spike on `/predict`) |
+
+---
+
+### Benchmark Artifacts
 
 ![Locust Load Test Performance](./assets/Locust_150_5_rampup.jpeg)
 
-- **0.00% Error Rate:** 371,782 consecutive requests processed without a single failure or timeout.
-- **Ultra-Low Latency:** Median response time of **4ms**, with **p95 at 9ms** and **p99 tail latency at 13ms**.
-- **High-Resolution Histograms:** Sub-millisecond Prometheus buckets eliminate interpolation artifacts in Grafana, displaying exact response distribution curves.
+![Grafana Metrics & SLO Dashboard](./assets/Grafana.jpeg)
 
 ---
+
+### Performance & Latency Analysis
+
+* **Sub-10ms Server-Side Latency (p95 & p99):**  
+  As captured in Prometheus/Grafana, internal processing overhead remains under **9.53 ms (p95)** and **9.93 ms (p99)** across all endpoints. The internal pipeline processes requests comfortably within strict real-time Service Level Objectives (SLOs).
+
+* **Predictable Tail Latency:**  
+  Client-side observations via Locust show a remarkably tight delta of just **12 ms** between median latency (**44 ms**) and the 99th percentile (**56 ms**). This near-flat latency profile demonstrates that the service avoids thread pool exhaustion, unmanaged queue build-up, and garbage-collection stalls during sustained concurrency.
+
+* **100% Availability Under Load:**  
+  Across 33,512 dispatched requests encompassing computationally heavier endpoints (`POST /predict?units=imperial`, `POST /predict?units=metric`) and high-volume reads (`GET /today`, `GET /health`), the system maintained a **0.0% failure rate** with zero 4xx/5xx status codes returned.
+
+* **Client Round-Trip Overhead:**  
+  The ~15–35 ms delta between Locust client round-trips (median 44 ms) and server-side Prometheus metrics (median ~8 ms) accounts for local TCP handshake overhead, connection pooling, and serialization over HTTP.
 
 ## 🧹 Teardown & Maintenance
 
