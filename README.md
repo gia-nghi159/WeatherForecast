@@ -2,16 +2,20 @@
 
 ![Weather UI Dashboard](./assets/UI.png)
 
-A high-performance, full-stack weather dashboard and 7-day Machine Learning temperature forecasting platform for Dallas, TX. This project demonstrates an end-to-end production MLOps system featuring automated Continuous Training (CT) pipelines, Redis telemetry caching, multi-worker FastAPI concurrency, and full-stack observability with Prometheus and Grafana.
+A high-performance, full-stack weather dashboard and 7-day Machine Learning temperature forecasting platform for Dallas, TX. This project demonstrates an end-to-end production MLOps & cloud-native infrastructure featuring automated Continuous Training (CT) pipelines, Redis telemetry caching, multi-worker FastAPI concurrency, Kubernetes orchestration on Oracle Cloud, and full-stack observability with Prometheus and Grafana.
+
+> 🌐 **Live Production Website:** [https://dallas-weather.com](https://dallas-weather.com) (Automated SSL/TLS via Let's Encrypt)
 
 ---
 
 ## ✨ System Architecture & Key Features
 
 - **MLOps & Continuous Training (CT):** Automated GitHub Actions pipelines that fetch real-world weather observations daily, evaluate ground-truth model drift (Mean Absolute Error), and retrain the Scikit-Learn Lasso Regression model weekly with automated versioning.
+- **Production Kubernetes (K3s) on Cloud:** Deployed on an enterprise-grade Oracle Cloud ARM64 Ampere VM running K3s, orchestrating 7 microservice pods across 2 replicas for high availability and self-healing.
+- **Automated SSL/TLS & Custom Domain:** Live under `dallas-weather.com` and `www.dallas-weather.com` using **cert-manager** and Let's Encrypt production ACME HTTP-01 challenges with automated 60-day certificate renewals.
+- **Defense-in-Depth Security:** Strict network boundary isolation where internal services (Redis, Prometheus, Grafana) are sequestered inside a private Kubernetes `ClusterIP` network, dropping all direct internet traffic.
 - **Sub-Millisecond In-Memory Caching:** Redis caching strategy that eliminates redundant external API calls and heavy Pandas feature engineering. Live telemetry is cached for 1 hour, and 7-day ML forecasts are cached with a 24-hour TTL (`CACHE_TTL_PREDICT = 86400`).
 - **High-Resolution Observability Stack:** Prometheus and Grafana integration via `prometheus-fastapi-instrumentator` with custom sub-millisecond histogram buckets (`1ms` to `1s+`), providing true p50, p90, p95, and p99 latency monitoring in real time.
-- **Robust DNS & Networking Architecture:** Optimized Docker internal bridge networking for inter-service container resolution (`backend:8000`, `prometheus:9090`, `redis:6379`), paired with direct IPv4 loopback (`127.0.0.1`) host bindings to eliminate macOS `mDNSResponder` / IPv6 DNS bottlenecks.
 - **High-Throughput Concurrency:** Uvicorn configured with 4 asynchronous worker processes (`--workers 4`), handling 300+ RPS under heavy load with zero dropped connections.
 - **Responsive React Frontend:** Built with React 19, TypeScript, and Vite, featuring dynamic glassmorphism styling, animated weather visuals, and instant client-side unit toggling (°C ⇄ °F, km/h ⇄ mph, hPa ⇄ inHg).
 
@@ -26,12 +30,58 @@ Every automated pipeline runs with automated **`pytest` safety gates** to guaran
 
 ---
 
+## 🏛️ Production Infrastructure & Engineering Design (K3s on Oracle Cloud)
+
+### Architecture Highlights
+
+```mermaid
+graph TD
+    User["🌐 Internet Visitors"]
+    DNS["DNS: dallas-weather.com (A Record)"]
+    Firewall["OCI Network Firewall (Port 80, 443, 22 Only)"]
+    Traefik["Traefik Ingress Controller (K3s)"]
+    CertMgr["cert-manager (Let's Encrypt TLS Auto-Renewal)"]
+    
+    subgraph K8s["Kubernetes Cluster (Namespace: weather)"]
+        Frontend["Frontend Pods (2x Nginx + React 19)"]
+        Backend["Backend Pods (2x FastAPI + ML Lasso)"]
+        Redis["Redis Cache (ClusterIP: 6379 - Private)"]
+        Prom["Prometheus (ClusterIP: 9090 - Private)"]
+        Grafana["Grafana (ClusterIP: 3000 - Private)"]
+    end
+
+    User --> DNS --> Firewall --> Traefik
+    CertMgr <--> Traefik
+    Traefik -->|/ (HTML/JS)| Frontend
+    Traefik -->|/today, /predict, /health, /metrics| Backend
+    Backend --> Redis
+    Backend -.->|Scrapes /metrics| Prom
+    Prom --> Grafana
+```
+
+### Why This Architecture? (Engineering Rationale)
+
+1. **True Cloud-Native Orchestration at Zero Cloud Cost ($0 / Month):**
+   Deploying on managed Kubernetes offerings (AWS EKS, GCP GKE, Azure AKS) incurs monthly control plane fees (~$73/mo each) plus compute charges. Oracle Cloud Infrastructure (OCI) offers an **Always Free Tier** providing **4 Ampere A1 ARM64 OCPUs and 24 GB RAM**, alongside 200 GB of block storage and 10 TB/month outbound bandwidth.
+2. **K3s vs. Standard Kubernetes (K8s/OKE):**
+   Standard Kubernetes control plane components (etcd, kube-apiserver, kube-controller-manager, kube-scheduler, kube-proxy, CoreDNS) consume substantial CPU and 2–4 GB RAM just idling. **K3s** (packaged by Rancher/SUSE) combines all components into a single lightweight binary (<100 MB memory footprint) while maintaining 100% CNCF-certified Kubernetes API compatibility. This leaves **22+ GB of free RAM** exclusively for application workloads, Redis in-memory caches, and Prometheus time-series metrics.
+3. **Automated Infrastructure as Code (IaC):**
+   The entire cloud environment (Virtual Cloud Network, subnets, internet gateway, security firewall lists, and compute instance) is declared in **Terraform** (`terraform/`). A cloud-init bootstrapper automatically disables OS-level iptables blocks and initializes the K3s cluster with remote TLS SAN binding in one command.
+4. **Declarative Kubernetes Architecture (`k8s/`):**
+   - **Frontend (`frontend.yaml`):** Multi-stage Docker build (Node.js compile -> Nginx Alpine reverse proxy) delivering static assets and forwarding API requests with 2 replicas.
+   - **Backend (`backend.yaml`):** 2-replica FastAPI deployment with Prometheus metrics endpoint scraping, rolling update zero-downtime policy, and automated liveness/readiness health checks.
+   - **Caching (`redis.yaml`):** In-cluster Redis with AOF persistence, isolated behind private `ClusterIP`.
+   - **Ingress & TLS (`ingress.yaml` & `cluster-issuer.yaml`):** Traefik Ingress with automated TLS termination for `dallas-weather.com` and `www.dallas-weather.com` powered by `cert-manager`.
+   - **Monitoring (`monitoring.yaml`):** Integrated Prometheus and Grafana instances collecting cluster and application telemetry.
+
+---
+
 ## 🏗️ Tech Stack
 
 ### Frontend
 - **Framework:** React 19, TypeScript, Vite
 - **Styling:** Vanilla CSS (Glassmorphism design system)
-- **State & Networking:** React Hooks, Vite HTTP Proxy
+- **State & Networking:** React Hooks, Vite HTTP Proxy / Nginx Alpine Reverse Proxy
 
 ### Backend & Machine Learning
 - **API Framework:** Python 3.11/3.13, FastAPI, Uvicorn (Multi-Worker)
@@ -39,12 +89,15 @@ Every automated pipeline runs with automated **`pytest` safety gates** to guaran
 - **Caching Layer:** Redis 7 (Alpine) with `fakeredis` local fallback
 - **Package Management:** `uv` (Fast Python package resolver)
 
-### DevOps & Observability
-- **Container Orchestration:** Docker Compose (Multi-Service Stack)
+### Cloud, DevOps & Observability
+- **Cloud Infrastructure:** Oracle Cloud Infrastructure (OCI) Always-Free Ampere A1 (4 OCPUs, 24 GB RAM)
+- **Container Orchestration:** Kubernetes (K3s), Docker, GitHub Container Registry (GHCR)
+- **Ingress & Security:** Traefik Ingress, `cert-manager` (Let's Encrypt ACME SSL/TLS), OCI VCN Security Lists
+- **Infrastructure as Code:** Terraform
 - **Metrics Collection:** Prometheus (`prom/prometheus:latest`)
 - **Telemetry Dashboards:** Grafana (`grafana/grafana:latest`)
 - **Load Testing:** Locust
-- **CI/CD:** GitHub Actions (Service containers, autostash git syncing)
+- **CI/CD:** GitHub Actions (Service containers, continuous training, pytest gates)
 
 ---
 
@@ -81,14 +134,30 @@ WeatherForecast/
 │   ├── prometheus.yml          # Prometheus scrape configuration
 │   ├── pyproject.toml          # Python package specification
 │   └── uv.lock                 # Strict dependency locking via uv
-└── frontend/                   # React + TypeScript Web Application
-    ├── src/
-    │   ├── components/         # Modular UI components (Current, Forecast, Details)
-    │   ├── types/              # TypeScript weather domain interfaces
-    │   ├── utils/              # Unit conversion & weather visual helpers
-    │   └── App.tsx             # Root React application
-    ├── package.json            # Node.js dependencies
-    └── vite.config.ts          # Vite configuration & backend proxy
+├── frontend/                   # React + TypeScript Web Application
+│   ├── src/
+│   │   ├── components/         # Modular UI components (Current, Forecast, Details)
+│   │   ├── types/              # TypeScript weather domain interfaces
+│   │   ├── utils/              # Unit conversion & weather visual helpers
+│   │   └── App.tsx             # Root React application
+│   ├── Dockerfile              # Production multi-stage Nginx build
+│   ├── nginx.conf              # Production Nginx reverse proxy configuration
+│   ├── package.json            # Node.js dependencies
+│   └── vite.config.ts          # Vite configuration & backend proxy
+├── k8s/                        # Declarative Kubernetes Manifests (K3s)
+│   ├── namespace.yaml          # Isolated 'weather' namespace
+│   ├── backend.yaml            # 2-replica FastAPI deployment & service
+│   ├── frontend.yaml           # 2-replica Nginx/React deployment & service
+│   ├── redis.yaml              # Redis caching deployment & ClusterIP service
+│   ├── ingress.yaml            # Traefik ingress routing for dallas-weather.com
+│   ├── cluster-issuer.yaml     # Let's Encrypt production SSL ClusterIssuer
+│   └── monitoring.yaml         # Prometheus & Grafana services & deployments
+└── terraform/                  # Infrastructure as Code (OCI Provisioning)
+    ├── main.tf                 # Compute instance, VCN, subnet & firewall rules
+    ├── variables.tf            # Configurable OCI variables
+    ├── outputs.tf              # Public IP and connection outputs
+    ├── provider.tf             # OCI Terraform provider definition
+    └── terraform.tfvars.example # Sanitized template for cloud credentials
 ```
 
 ---
@@ -180,45 +249,49 @@ make test
 
 ---
 
-## ⚡ Performance & Benchmark Results
+## ⚡ Performance & Production Benchmark Results
 
-### High-Concurrency Stress Test (150 Users, ~450 RPS)
+### Real Production Cloud Stress Test (200 Concurrent Users, ~420 RPS)
 
-Under sustained high-frequency load testing across **33,500+ requests** with 150 simulated concurrent users:
+Sustained synthetic production load test executed over public WAN internet traffic directly against the **live Oracle Cloud production instance**, dispatching **451,162 total requests** across all API endpoints:
 
-| Metric | Locust (Client Round-Trip) | Grafana / Prometheus (Server Processing) |
+| Metric | Locust (Public WAN Client Round-Trip) | Grafana / Prometheus (In-Cluster Server Processing) |
 | :--- | :--- | :--- |
-| **Current / Peak Throughput** | **450.7 RPS** | **4.86K req/s** (Peak Rate) |
-| **Success Rate / Error Ratio**| **100%** (0% failures) | **100% HTTP 2xx** (0 HTTP 4xx/5xx) |
-| **Average Response Time** | **29.75 ms** | ~8.20 ms |
-| **Median Latency (p50)** | **44 ms** | ~8.00 ms |
-| **p95 Latency** | **51 ms** | **9.53 ms** |
-| **p99 Tail Latency** | **56 ms** | **9.93 ms** |
-| **Max Recorded Latency** | **98 ms** | ~95.4 ms (Burst spike on `/predict`) |
+| **Simulated Concurrent Users** | **200 Concurrent Users** | 2-Replica Scaled Backend Pods |
+| **Total Requests Dispatched** | **451,162 requests** | Continuous Scrape Interval (15s) |
+| **Sustained Throughput** | **419.7 RPS** | **48.1 req/s** (Sampling Average) |
+| **Success Rate / Error Ratio**| **100%** (0 failures / 0% errors) | **100% HTTP 2xx** (Zero 4xx/5xx) |
+| **Average Response Time** | **136.7 ms** | ~12.5 ms |
+| **Median Latency (p50)** | **130 ms** | ~10–12 ms |
+| **p95 Latency** | **220 ms** | **19.1 ms** |
+| **p99 Tail Latency** | **280 ms** | **35.8 ms** |
+| **Min Recorded Latency** | **44 ms** | < 1 ms (Redis cache hit) |
 
 ---
 
 ### Benchmark Artifacts
 
-![Locust Load Test Performance](./assets/Locust_150_5_rampup.jpeg)
+#### 1. Locust Public WAN Load Test (200 Users, 419.7 RPS, 0 Failures across 451K Requests)
+![Locust Load Test (200 Users)](./assets/Locust_200.jpg)
 
-![Grafana Metrics & SLO Dashboard](./assets/Grafana.jpeg)
+#### 2. Grafana Production SRE & MLOps Dashboard (Sub-20ms p95 Server Processing)
+![Grafana Production Metrics & SLO Dashboard](./assets/Grafana.jpeg)
 
 ---
 
-### Performance & Latency Analysis
+### Performance & Architectural Insights
 
-* **Sub-10ms Server-Side Latency (p95 & p99):**  
-  As captured in Prometheus/Grafana, internal processing overhead remains under **9.53 ms (p95)** and **9.93 ms (p99)** across all endpoints. The internal pipeline processes requests comfortably within strict real-time Service Level Objectives (SLOs).
+* **Sub-20ms Server-Side Processing Under Heavy Load (`p95 = 19.1 ms`):**  
+  As captured in Prometheus and visualized in Grafana, internal server processing overhead remained at **19.1 ms (p95)** and **35.8 ms (p99)** across all endpoints under continuous 200-user load. Even during intensive multi-target Lasso prediction batches (`POST /predict`), server-side compute stayed well below real-time production thresholds.
 
-* **Predictable Tail Latency:**  
-  Client-side observations via Locust show a remarkably tight delta of just **12 ms** between median latency (**44 ms**) and the 99th percentile (**56 ms**). This near-flat latency profile demonstrates that the service avoids thread pool exhaustion, unmanaged queue build-up, and garbage-collection stalls during sustained concurrency.
+* **Understanding WAN Travel vs. Server Processing:**  
+  The difference between client-measured latency (median **130 ms**) and Prometheus server-side metrics (median **~11 ms**) reflects real-world public internet WAN transit time from the client machine to Oracle's cloud datacenter, TLS handshake negotiation, and TCP packet round-trips over the public web.
 
-* **100% Availability Under Load:**  
-  Across 33,512 dispatched requests encompassing computationally heavier endpoints (`POST /predict?units=imperial`, `POST /predict?units=metric`) and high-volume reads (`GET /today`, `GET /health`), the system maintained a **0.0% failure rate** with zero 4xx/5xx status codes returned.
+* **Flawless 100% Availability Across 451,000+ Requests:**  
+  Across **451,162 requests** comprising high-volume reads (`GET /today`, `GET /health`) and Scikit-Learn inference calls (`POST /predict`), the system achieved a **0.0% failure rate** with zero dropped packets, zero 502/504 Bad Gateway errors, and zero memory leaks.
 
-* **Client Round-Trip Overhead:**  
-  The ~15–35 ms delta between Locust client round-trips (median 44 ms) and server-side Prometheus metrics (median ~8 ms) accounts for local TCP handshake overhead, connection pooling, and serialization over HTTP.
+* **Sub-Millisecond Redis Caching Impact:**  
+  Live telemetry endpoints (`/today`) achieved sub-millisecond local reads from Redis (`min = 44 ms` total WAN trip), completely isolating third-party weather data providers from rate limits during traffic spikes.
 
 ## 🧹 Teardown & Maintenance
 

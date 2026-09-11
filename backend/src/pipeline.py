@@ -1,6 +1,7 @@
 import json
 import sys
 from datetime import datetime, timedelta
+import joblib
 import pandas as pd
 import redis
 import fakeredis
@@ -11,11 +12,14 @@ from src.config import (
     DALLAS_LAT,
     DALLAS_LON,
     EVALUATIONS_LOG,
+    MODEL_PATH,
+    MODEL_VERSION,
     PREDICTIONS_LOG,
     REDIS_URL,
     RETENTION_DAYS,
     logger,
 )
+from src.preprocessing import clean_and_engineer_features
 
 def clear_redis_cache(pattern: str = "weather:*"):
     """Flushes matching prediction/hourly caches when fresh telemetry is ingested."""
@@ -153,9 +157,60 @@ def fetch_open_meteo_daily(start_date: str, end_date: str) -> pd.DataFrame:
     return df
 
 
+def generate_and_log_daily_predictions():
+    """Generates today's 7-day forecast predictions using the latest trained model
+    and appends them to PREDICTIONS_LOG so subsequent pipeline runs can evaluate ground truth.
+    """
+    if not MODEL_PATH.exists() or not DAILY_CSV.exists():
+        logger.warning("Model or daily dataset missing. Skipping automated prediction generation.")
+        return
+
+    try:
+        pipe = joblib.load(MODEL_PATH)
+        df = pd.read_csv(DAILY_CSV)
+        df_engineered = clean_and_engineer_features(df)
+
+        X = df_engineered[pipe.feature_names_in_].tail(1)
+        if X.isnull().any().any():
+            X = X.ffill().fillna(0)
+
+        raw_predictions_c = pipe.predict(X)[0]
+        today = datetime.now().date()
+
+        logs_map = {}
+        if PREDICTIONS_LOG.exists():
+            with open(PREDICTIONS_LOG, "r") as f:
+                for line in f:
+                    if line.strip():
+                        entry = json.loads(line)
+                        key = (entry["target_date"], entry["horizon_days"])
+                        logs_map[key] = entry
+
+        for i, pred_temp in enumerate(raw_predictions_c):
+            target_date = str(today + timedelta(days=i + 1))
+            horizon = i + 1
+            key = (target_date, horizon)
+            logs_map[key] = {
+                "predicted_at": str(today),
+                "target_date": target_date,
+                "horizon_days": horizon,
+                "predicted_tmax_c": round(float(pred_temp), 2),
+                "model_version": MODEL_VERSION,
+            }
+
+        PREDICTIONS_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with open(PREDICTIONS_LOG, "w") as f:
+            for entry in logs_map.values():
+                f.write(json.dumps(entry) + "\n")
+
+        logger.info(f"Successfully generated and synced {len(raw_predictions_c)} daily predictions to {PREDICTIONS_LOG.name}.")
+    except Exception as e:
+        logger.error(f"Failed to generate automated daily predictions: {e}")
+
+
 def update_daily_data():
     """Fetches missing daily weather observations from Open-Meteo,
-    updates DAILY_CSV, and triggers evaluation + cache invalidation.
+    updates DAILY_CSV, and triggers evaluation + automated prediction generation.
     """
     end_date = (datetime.now().date() - timedelta(days=1)).strftime("%Y-%m-%d")
 
@@ -210,6 +265,9 @@ def update_daily_data():
 
     # Step 3: Run Evaluation AFTER ground truth data is updated
     evaluate_ground_truth()
+
+    # Step 4: Generate today's new predictions for upcoming ground-truth evaluation
+    generate_and_log_daily_predictions()
 
 
 def update_hourly_data():
